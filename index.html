@@ -412,9 +412,9 @@
 
   <div class="controls">
     <div class="tabs" id="tabs">
-      <button class="tab" data-flag="all"><span class="dot"></span>ทั้งหมด</button>
-      <button class="tab active" data-flag="short"><span class="dot"></span>รับขาด</button>
-      <button class="tab active" data-flag="over"><span class="dot"></span>รับเกิน</button>
+      <button class="tab active" data-flag="all"><span class="dot"></span>ทั้งหมด</button>
+      <button class="tab" data-flag="short"><span class="dot"></span>รับขาด</button>
+      <button class="tab" data-flag="over"><span class="dot"></span>รับเกิน</button>
     </div>
     <div class="search-group">
       <div class="search-wrap">
@@ -476,13 +476,12 @@ let masterPOsRaw = [];       // all accumulated raw PO records (across every upl
 let masterReturns = [];      // all accumulated returns rows
 let currentPOs = [];         // enriched + date-filtered POs currently rendered
 let currentReturns = [];
-// A PO is "short" or "over" based on its NET totals (see enrich()); "match" POs aren't
-// worth a tab of their own (the KPI strip already covers them), so the default view is
-// just the two problem tabs. "all" is a special meta-tab (not a real po.flag value) that
-// shows every PO regardless of flag - picking it clears the short/over selection, and
-// vice versa, same as a single-select would, but still expressed as a Set so the rest of
+// "all" is a special meta-tab (not a real po.flag value) that shows every PO regardless of
+// flag, including fully-received ones - it's the default so the table matches the KPI strip
+// (every PO counted there) the moment the page opens. Picking "short" or "over" clears "all",
+// and vice versa, same as a single-select would, but still expressed as a Set so the rest of
 // the filtering code doesn't need two separate code paths.
-let activeFlags = new Set(['short', 'over']);
+let activeFlags = new Set(['all']);
 // Three separate search terms instead of one combined box - a PO number, supplier code, and
 // item code can all be numeric and happen to collide, so one shared search field could match
 // the wrong thing for the wrong reason. Keeping them separate lets the person search exactly
@@ -657,10 +656,13 @@ function flagLabel(f){
 function renderMeta(pos){
   const el = document.getElementById('metaChips');
   if (!pos.length){ el.innerHTML = ''; return; }
-  const store = pos[0].store || '';
+  // Pick the first PO that actually has a store name rather than assuming index 0 has one -
+  // belt-and-suspenders now that store round-trips through Google Sheets too (see Code.gs).
+  const withStore = pos.find(p => p.store);
+  const store = withStore ? withStore.store : '';
   const days = [...new Set(pos.map(p => p.rd).filter(Boolean))];
   el.innerHTML = `
-    <span class="meta-chip">สาขา <b>${store || '129 ลาดกระบัง'}</b></span>
+    ${store ? `<span class="meta-chip">สาขา <b>${escapeHtml(store)}</b></span>` : ''}
     <span class="meta-chip">แสดงข้อมูล <b>${days.length}</b> วัน</span>
     <span class="meta-chip">จำนวนใบสั่งซื้อ <b>${pos.length}</b></span>
   `;
