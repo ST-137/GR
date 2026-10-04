@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบตรวจรับสินค้า GR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  // Apply the saved theme choice before first paint, so the page never flashes the wrong
+  // theme for a moment. Default to "light" (not the phone's system setting) because this is
+  // a work tool read under warehouse lighting - dark mode only kicks in if picked on purpose.
+  (function(){
+    try {
+      var saved = localStorage.getItem('gr_theme');
+      document.documentElement.dataset.theme = (saved === 'dark') ? 'dark' : 'light';
+    } catch(e){ document.documentElement.dataset.theme = 'light'; }
+  })();
+</script>
+<style>
+  :root{
+    --ink:#1B2430;
+    --ink-soft:#4B5563;
+    --paper:#F4F2EC;
+    --surface:#FFFFFF;
+    --line:#E3DFD3;
+    --line-strong:#CFC9B8;
+    --navy:#10161D;
+    --navy-2:#1D2A36;
+    --accent:#DD6A2E;
+    --accent-ink:#8A3814;
+    --accent-soft:#FBE9DC;
+    --ok:#2E7D4F;
+    --ok-bg:#E6F3EB;
+    --warn:#B8860F;
+    --warn-bg:#FBF1DA;
+    --over:#B23A2E;
+    --over-bg:#FAE7E4;
+    --alert:#7A3FB0;
+    --alert-bg:#F1E8F8;
+    --radius-s:6px;
+    --radius-m:10px;
+    --shadow-card: 0 1px 2px rgba(16,22,29,0.06), 0 1px 0 rgba(16,22,29,0.04);
+  }
+  :root:not([data-theme="light"]){
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#EDECE7; --ink-soft:#B7B2A4; --paper:#15130F; --surface:#1E1B15;
+      --line:#332F26; --line-strong:#4A4536; --navy:#0A0D10; --navy-2:#161F27;
+      --accent:#F0844A; --accent-ink:#F0844A; --accent-soft:#3A2416;
+      --ok:#6FCB93; --ok-bg:#12291B; --warn:#E0B84A; --warn-bg:#332A0F;
+      --over:#EF8579; --over-bg:#3A1613; --alert:#C79AE8; --alert-bg:#2A1B38;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#EDECE7; --ink-soft:#B7B2A4; --paper:#15130F; --surface:#1E1B15;
+    --line:#332F26; --line-strong:#4A4536; --navy:#0A0D10; --navy-2:#161F27;
+    --accent:#F0844A; --accent-ink:#F0844A; --accent-soft:#3A2416;
+    --ok:#6FCB93; --ok-bg:#12291B; --warn:#E0B84A; --warn-bg:#332A0F;
+    --over:#EF8579; --over-bg:#3A1613; --alert:#C79AE8; --alert-bg:#2A1B38;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"IBM Plex Sans Thai","IBM Plex Sans",sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .num{ font-family:"IBM Plex Mono","IBM Plex Sans Thai",monospace; font-variant-numeric: tabular-nums; }
+  .wrap{ max-width:1180px; margin:0 auto; padding:0 20px; }
+
+  /* ---------- HERO ---------- */
+  .hero{
+    background:
+      radial-gradient(1200px 500px at 85% -10%, rgba(221,106,46,0.25), transparent 60%),
+      linear-gradient(180deg, var(--navy) 0%, var(--navy-2) 100%);
+    color:#F3F1EA;
+    padding:34px 0 26px;
+    border-bottom:3px solid var(--accent);
+  }
+  .hero-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; }
+  .theme-toggle-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border-radius:50%;
+    border:1px solid var(--line-strong); background:var(--surface); color:var(--ink);
+    cursor:pointer; font-size:16px; line-height:1; flex-shrink:0;
+  }
+  .theme-toggle-btn:hover{ background:var(--accent-soft); }
+  .eyebrow{
+    color:var(--accent); opacity:0.95; font-size:13px; font-weight:600;
+    letter-spacing:0.02em; margin:0 0 6px;
+  }
+  .hero h1{
+    margin:0; font-size:30px; font-weight:700; letter-spacing:-0.01em; color:#fff;
+  }
+  .hero p.sub{ margin:8px 0 0; color:#C9C4B6; font-size:14.5px; max-width:56ch; }
+  .hero-meta{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+  .meta-chip{
+    background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12);
+    color:#EDEAE1; padding:6px 12px; border-radius:999px; font-size:13px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .meta-chip b{ color:#fff; font-weight:600; }
+  .admin-toggle-wrap{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; min-width:270px; }
+  .admin-toggle-btn{
+    appearance:none; cursor:pointer; font-family:inherit; font-weight:600; font-size:12.5px;
+    padding:9px 14px; border-radius:999px; background:rgba(255,255,255,0.08); color:#F3F1EA;
+    border:1px solid rgba(255,255,255,0.18); display:flex; align-items:center; gap:8px; white-space:nowrap;
+  }
+  .admin-toggle-btn:hover{ background:rgba(255,255,255,0.14); }
+  .admin-toggle-btn .chev-mini{ transition:transform .15s ease; flex:0 0 auto; }
+  .admin-toggle-btn.open .chev-mini{ transform:rotate(180deg); }
+  .upload-success-badge{
+    display:inline-flex; align-items:center; gap:4px; background:rgba(46,125,79,0.28); color:#9BE8B8;
+    padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700;
+  }
+  .upload-box{
+    background:rgba(255,255,255,0.05);
+    border:1.5px dashed rgba(240,132,74,0.55);
+    border-radius:var(--radius-m);
+    padding:14px 16px;
+    min-width:270px;
+    width:100%;
+    flex-direction:column; gap:8px;
+    display:none;
+  }
+  .upload-box.show{ display:flex; }
+  .upload-box.dragover{ background:rgba(221,106,46,0.14); border-color:var(--accent); }
+  .upload-title{ font-size:13px; font-weight:600; color:#F3F1EA; }
+  .upload-hint{ font-size:11.5px; color:#9C978A; margin-top:-4px; }
+  .upload-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .btn{
+    appearance:none; border:none; cursor:pointer; font-family:inherit;
+    font-weight:600; font-size:13.5px; padding:11px 18px; border-radius:var(--radius-s);
+    transition:transform .08s ease, opacity .15s ease; white-space:nowrap;
+    min-height:40px;
+  }
+  .btn:active{ transform:scale(0.98); }
+  .btn:disabled{ opacity:0.45; cursor:not-allowed; }
+  .btn:disabled:active{ transform:none; }
+  .btn-accent{ background:var(--accent); color:#1B0E06; }
+  .btn-accent:hover{ opacity:0.92; }
+  .btn-ghost{ background:rgba(255,255,255,0.08); color:#F3F1EA; border:1px solid rgba(255,255,255,0.18); }
+  .btn-ghost:hover{ background:rgba(255,255,255,0.14); }
+  .file-name{ font-size:12px; color:#B7B2A4; }
+  input[type=file]{ display:none; }
+  .upload-footer-row{ display:flex; gap:14px; flex-wrap:wrap; margin-top:2px; }
+  .link-btn{
+    appearance:none; background:none; border:none; padding:0; cursor:pointer; font-family:inherit;
+    font-size:11.5px; color:#D8B79C; text-decoration:underline; text-underline-offset:2px;
+  }
+  .link-btn:hover{ color:var(--accent); }
+  .settings-panel{
+    display:none; max-width:640px; margin:16px auto 0; background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.14); border-radius:var(--radius-m); padding:14px 16px;
+  }
+  .settings-panel.show{ display:block; }
+  .settings-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+  .settings-label{ font-size:12px; color:#D8D3C6; width:130px; flex:0 0 auto; }
+  .settings-panel input[type=text]{
+    flex:1; min-width:180px; font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.2);
+    background:rgba(0,0,0,0.2); color:#F3F1EA;
+  }
+  .api-status{ font-size:12px; color:#B7B2A4; margin:6px 0 0; }
+  .file-name.success{ color:#9BE8B8; font-weight:600; }
+
+  /* ---------- KPI STRIP ---------- */
+  .kpi-strip{
+    display:grid; grid-template-columns:repeat(6,1fr); gap:12px;
+    margin:-26px 0 22px;
+    position:relative; z-index:2;
+  }
+  .kpi{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-m);
+    padding:14px 16px; box-shadow:var(--shadow-card);
+  }
+  .kpi .n{ font-size:24px; font-weight:700; line-height:1.1; }
+  .kpi .l{ font-size:12.5px; color:var(--ink-soft); margin-top:4px; }
+  .kpi.ok .n{ color:var(--ok); }
+  .kpi.warn .n{ color:var(--warn); }
+  .kpi.over .n{ color:var(--over); }
+  .kpi.alert .n{ color:var(--alert); }
+  .kpi.accent .n{ color:var(--accent-ink); }
+
+  /* ---------- CONTROLS ---------- */
+  .controls{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    flex-wrap:wrap; margin-bottom:14px;
+  }
+  .tabs{ display:flex; gap:6px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:4px; flex-wrap:wrap; }
+  .tab{
+    border:none; background:transparent; padding:7px 14px; border-radius:999px; font-size:13.5px;
+    font-weight:600; cursor:pointer; color:var(--ink-soft); font-family:inherit;
+    display:flex; align-items:center; gap:6px;
+  }
+  .tab .dot{ width:7px; height:7px; border-radius:50%; }
+  .tab.active{ background:var(--ink); color:var(--paper); }
+  .tab[data-flag="all"] .dot{ background:var(--ink-soft); }
+  .tab[data-flag="short"] .dot{ background:var(--warn); }
+  .tab[data-flag="over"] .dot{ background:var(--over); }
+  .search-group{ display:flex; gap:8px; flex-wrap:wrap; }
+  .search-wrap{ position:relative; }
+  .search-wrap input{
+    font-family:inherit; font-size:13.5px; padding:9px 14px 9px 34px; border-radius:999px;
+    border:1px solid var(--line-strong); width:170px; background:var(--surface); color:var(--ink);
+  }
+  .search-wrap input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .search-wrap svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%); opacity:0.5; }
+
+  .count-line{ font-size:13px; color:var(--ink-soft); margin:0 0 10px; }
+
+  /* ---------- DATE RANGE ---------- */
+  .daterange-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+  .daterange{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:6px 14px 6px 6px; }
+  .daterange label{ font-size:12.5px; color:var(--ink-soft); display:flex; align-items:center; gap:6px; }
+  .daterange input[type=date]{
+    font-family:"IBM Plex Mono","IBM Plex Sans Thai",monospace; font-size:13px; padding:6px 8px;
+    border:1px solid var(--line-strong); border-radius:6px; background:var(--surface); color:var(--ink);
+  }
+  .daterange input[type=date]:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .btn-sm{ padding:8px 14px; font-size:12.5px; min-height:auto; }
+  .range-info{ font-size:12.5px; color:var(--ink-soft); margin:0 0 14px; }
+  .range-info b{ color:var(--ink); }
+
+  /* ---------- PO TABLE (Excel-style, one row per PO) ---------- */
+  .table-scroll{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-m);
+    box-shadow:var(--shadow-card); overflow:auto; margin-bottom:34px;
+    -webkit-overflow-scrolling:touch;
+  }
+  table.po-table{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:920px; }
+  table.po-table thead th{
+    position:sticky; top:0; z-index:1; background:var(--surface);
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em;
+    color:var(--ink-soft); font-weight:600; padding:10px 12px; border-bottom:2px solid var(--line-strong);
+    white-space:nowrap;
+  }
+  table.po-table thead th.num{ text-align:right; }
+  table.po-table thead th.col-chev{ width:28px; }
+  tr.po-row{ cursor:pointer; border-bottom:1px solid var(--line); }
+  tr.po-row:hover{ background:color-mix(in srgb, var(--accent-soft) 40%, transparent); }
+  tr.po-row.open{ background:color-mix(in srgb, var(--accent-soft) 55%, transparent); border-bottom-color:transparent; }
+  tr.po-row td{ padding:9px 12px; white-space:nowrap; vertical-align:middle; }
+  tr.po-row td.num{ text-align:right; font-weight:600; }
+  tr.po-row td.col-supplier{ white-space:normal; max-width:260px; }
+  .chev{ display:inline-block; transition:transform .15s ease; color:var(--ink-soft); vertical-align:-2px; }
+  tr.po-row.open .chev{ transform:rotate(90deg); }
+  .supplier-name{ font-weight:500; }
+  .supplier-code{ color:var(--ink-soft); font-size:12px; }
+  .dc-tag{
+    display:inline-block; font-size:10.5px; font-weight:700; color:var(--accent-ink);
+    background:var(--accent-soft); padding:1px 6px; border-radius:5px; margin-left:6px; vertical-align:1px;
+  }
+  .flag-badge{
+    font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px;
+    display:inline-flex; align-items:center; gap:5px; white-space:nowrap;
+  }
+  .flag-badge .dot{ width:6px; height:6px; border-radius:50%; }
+  .flag-match{ background:var(--ok-bg); color:var(--ok); }
+  .flag-match .dot{ background:var(--ok); }
+  .flag-short{ background:var(--warn-bg); color:var(--warn); }
+  .flag-short .dot{ background:var(--warn); }
+  .flag-over{ background:var(--over-bg); color:var(--over); }
+  .flag-over .dot{ background:var(--over); }
+  .flag-noorder{ background:var(--alert-bg); color:var(--alert); }
+  .flag-noorder .dot{ background:var(--alert); }
+
+  tr.po-detail-row{ display:none; }
+  tr.po-detail-row.show{ display:table-row; }
+  tr.po-detail-row td{ padding:0; border-bottom:1px solid var(--line); background:var(--paper); }
+  .po-body{ padding:4px 16px 16px; }
+  .po-detail-meta{ display:flex; gap:18px; flex-wrap:wrap; padding:12px 0 6px; font-size:12.5px; color:var(--ink-soft); }
+  .po-detail-meta b{ color:var(--ink); font-weight:600; }
+  .po-sub{ font-size:12px; color:var(--ink-soft); }
+
+  table.items{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.items th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em;
+    color:var(--ink-soft); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line);
+  }
+  table.items td{ padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.items tr:last-child td{ border-bottom:none; }
+  table.items td.num, table.items th.num{ text-align:right; }
+  table.items tfoot .items-total-row td{
+    border-top:2px solid var(--line-strong); border-bottom:none;
+    font-weight:700; background:color-mix(in srgb, var(--accent-soft) 45%, var(--surface));
+  }
+  .item-flag{ display:inline-flex; align-items:center; gap:5px; font-weight:600; font-size:12px; }
+  .item-flag .dot{ width:6px; height:6px; border-radius:50%; }
+  tr.row-short{ background:color-mix(in srgb, var(--warn-bg) 55%, transparent); }
+  tr.row-over{ background:color-mix(in srgb, var(--over-bg) 55%, transparent); }
+  tr.row-noorder{ background:color-mix(in srgb, var(--alert-bg) 55%, transparent); }
+  tr.row-match-hit{ outline:2px solid var(--accent); outline-offset:-2px; }
+
+  .empty-state{
+    background:var(--surface); border:1.5px dashed var(--line-strong); border-radius:var(--radius-m);
+    padding:60px 24px; text-align:center; color:var(--ink-soft);
+  }
+  .empty-state svg{ margin-bottom:14px; opacity:0.55; }
+  .empty-state h3{ margin:0 0 6px; color:var(--ink); font-size:17px; }
+
+  .returns-section{ margin:0 0 40px; }
+  .returns-section h2{ font-size:16px; margin:0 0 10px; }
+  .returns-table-wrap{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-m); overflow:hidden; box-shadow:var(--shadow-card); }
+  table.returns{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.returns th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-soft); font-weight:600; padding:10px; border-bottom:1px solid var(--line); }
+  table.returns td{ padding:10px; border-bottom:1px solid var(--line); }
+  table.returns tr:last-child td{ border-bottom:none; }
+  table.returns td.num{ text-align:right; }
+
+  footer{ padding:24px 0 40px; text-align:center; color:var(--ink-soft); font-size:12.5px; }
+
+  @media (max-width:900px){
+    .kpi-strip{ grid-template-columns:repeat(3,1fr); margin-top:-18px; }
+    /* po-table scrolls horizontally on narrow screens via .table-scroll */
+  }
+  @media (max-width:560px){
+    .kpi-strip{ grid-template-columns:repeat(2,1fr); }
+    .hero h1{ font-size:22px; }
+    .hero{ padding:26px 0 22px; }
+    .hero-top{ flex-direction:column; }
+    .admin-toggle-wrap{ width:100%; align-items:stretch; }
+    .admin-toggle-btn{ justify-content:space-between; }
+    .upload-box{ width:100%; min-width:0; }
+    .upload-row{ flex-direction:column; align-items:stretch; }
+    .upload-row .btn{ width:100%; text-align:center; }
+    .controls{ flex-direction:column; align-items:stretch; }
+    .tabs{ overflow-x:auto; -webkit-overflow-scrolling:touch; justify-content:flex-start; }
+    .tab{ flex:0 0 auto; }
+    .search-group{ flex-direction:column; width:100%; }
+    .search-wrap{ width:100%; }
+    .search-wrap input{ width:100%; }
+    .daterange-row{ flex-direction:column; align-items:stretch; }
+    .daterange{ justify-content:space-between; }
+    .daterange input[type=date]{ flex:1; min-width:0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="hero-top">
+      <div>
+        <p class="eyebrow">แผนก GR · ตรวจรับสินค้าประจำวัน</p>
+        <h1>ระบบตรวจรับสินค้า GR</h1>
+        <p class="sub">เทียบยอดสั่งซื้อกับยอดรับจริงทุกใบ อัตโนมัติ ชี้เป้ารายการรับขาด รับเกิน และของที่รับเข้ามาโดยไม่มีใบสั่งซื้อ</p>
+        <div class="hero-meta" id="metaChips"></div>
+      </div>
+      <div class="admin-toggle-wrap">
+        <div style="display:flex; align-items:center; gap:8px; width:100%;">
+          <button class="theme-toggle-btn" id="themeToggleBtn" type="button" title="สลับโทนสว่าง/มืด">☀</button>
+          <button class="admin-toggle-btn" id="adminToggleBtn" type="button" style="flex:1;">
+            <span>⚙ อัปโหลดไฟล์ / ตั้งค่า (สำหรับแอดมิน)</span>
+            <svg class="chev-mini" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="upload-success-badge" id="uploadSuccessBadge" style="display:none">✓ อัปโหลดล่าสุดสำเร็จ</span>
+          </button>
+        </div>
+        <div class="upload-box" id="uploadBox">
+          <div class="upload-title">อัปโหลดไฟล์รายงานวันนี้</div>
+          <div class="upload-hint">รองรับไฟล์ GORL 20 (.xlsx) ที่ export จากระบบทุกวัน · เลือกไฟล์ก่อน แล้วกด "อัปโหลด" อีกครั้งเพื่อยืนยัน</div>
+          <div class="upload-row">
+            <button class="btn btn-ghost" id="uploadBtn" type="button">1) เลือกไฟล์ .xlsx</button>
+            <button class="btn btn-accent" id="confirmUploadBtn" type="button" disabled>2) ⬆ อัปโหลด</button>
+          </div>
+          <input type="file" id="fileInput" accept=".xlsx,.xls">
+          <div class="file-name" id="fileNameLbl">ยังไม่ได้อัปโหลด · ลากไฟล์มาวางในกล่องนี้ได้เลย</div>
+          <div class="upload-footer-row">
+            <button class="link-btn" id="settingsToggle" type="button">⚙ ตั้งค่าฐานข้อมูล (Google Sheets)</button>
+          </div>
+          <div class="upload-footer-row">
+            <button class="link-btn" id="syncNowBtn" type="button" title="ดึงข้อมูลล่าสุดจาก Google Sheets มาแสดง - ไม่ต้องเลือกไฟล์">🔄 รีเฟรชข้อมูลล่าสุด (ไม่ต้องเลือกไฟล์)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="settings-panel" id="settingsPanel">
+      <div class="settings-row">
+        <label class="settings-label">Web App URL</label>
+        <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/xxxxx/exec">
+      </div>
+      <div class="settings-row">
+        <label class="settings-label">Token (ถ้าตั้งไว้)</label>
+        <input type="text" id="apiTokenInput" placeholder="ไม่บังคับ">
+        <button class="btn btn-accent btn-sm" id="saveApiBtn" type="button">บันทึกและทดสอบ</button>
+      </div>
+      <p class="api-status" id="apiStatus">ยังไม่ได้ตั้งค่า Google Sheets · ข้อมูลจะถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น</p>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="kpi-strip" id="kpiStrip"></div>
+
+  <div class="daterange-row">
+    <div class="daterange">
+      <label>ตั้งแต่ <input type="date" id="dateFrom"></label>
+      <label>ถึง <input type="date" id="dateTo"></label>
+      <button class="btn btn-accent btn-sm" id="applyRangeBtn" type="button">🔍 ค้นหา</button>
+      <button class="btn btn-ghost btn-sm" id="resetRangeBtn" type="button">แสดงทั้งหมด</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="clearDataBtn" type="button">ล้างข้อมูลสะสม</button>
+  </div>
+  <p class="range-info" id="rangeInfo"></p>
+
+  <div class="controls">
+    <div class="tabs" id="tabs">
+      <button class="tab" data-flag="all"><span class="dot"></span>ทั้งหมด</button>
+      <button class="tab active" data-flag="short"><span class="dot"></span>รับขาด</button>
+      <button class="tab active" data-flag="over"><span class="dot"></span>รับเกิน</button>
+    </div>
+    <div class="search-group">
+      <div class="search-wrap">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchPO" placeholder="เลข PO / GOR">
+      </div>
+      <div class="search-wrap">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchVendor" placeholder="ผู้ขาย (รหัส/ชื่อ)">
+      </div>
+      <div class="search-wrap">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchItem" placeholder="สินค้า (ชื่อ/รหัส/บาร์โค้ด)">
+      </div>
+    </div>
+  </div>
+
+  <p class="count-line" id="countLine"></p>
+
+  <div class="table-scroll">
+    <table class="po-table">
+      <thead>
+        <tr>
+          <th class="col-chev"></th>
+          <th class="num">PO</th>
+          <th class="num">GOR No.</th>
+          <th class="num">รหัส</th>
+          <th>ผู้ขาย</th>
+          <th class="num">วันที่รับ</th>
+          <th class="num">สั่ง</th>
+          <th class="num">รับ</th>
+          <th class="num">ผลต่าง</th>
+          <th>สถานะ</th>
+        </tr>
+      </thead>
+      <tbody id="poList"></tbody>
+    </table>
+  </div>
+
+  <div class="returns-section" id="returnsSection" style="display:none;">
+    <h2>รายการตีคืน / เคลม (คลัง DC)</h2>
+    <div class="returns-table-wrap">
+      <table class="returns">
+        <thead>
+          <tr><th class="col-chev"></th><th class="num">วันที่</th><th class="num">เลขที่คืน</th><th>ประเภท</th><th class="num">รหัสผู้ขาย</th><th>ชื่อผู้ขาย</th><th class="num">จำนวนรายการ</th><th class="num">สั่งคืน</th><th class="num">รับคืนจริง</th><th class="num">ผลต่าง</th></tr>
+        </thead>
+        <tbody id="returnsBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<footer>ระบบตรวจรับสินค้า GR &middot; ประมวลผลในเบราว์เซอร์ของคุณ ไม่มีการส่งข้อมูลออกไปที่ใด</footer>
+
+<script>
+const SAMPLE_DATA = {"pos":[],"returns":[]}; // no real data embedded - a fresh deployment for any branch starts empty instead of showing another branch's demo figures
+
+let masterPOsRaw = [];       // all accumulated raw PO records (across every uploaded day), unenriched
+let masterReturns = [];      // all accumulated returns rows
+let currentPOs = [];         // enriched + date-filtered POs currently rendered
+let currentReturns = [];
+// A PO is "short" or "over" based on its NET totals (see enrich()); "match" POs aren't
+// worth a tab of their own (the KPI strip already covers them), so the default view is
+// just the two problem tabs. "all" is a special meta-tab (not a real po.flag value) that
+// shows every PO regardless of flag - picking it clears the short/over selection, and
+// vice versa, same as a single-select would, but still expressed as a Set so the rest of
+// the filtering code doesn't need two separate code paths.
+let activeFlags = new Set(['short', 'over']);
+// Three separate search terms instead of one combined box - a PO number, supplier code, and
+// item code can all be numeric and happen to collide, so one shared search field could match
+// the wrong thing for the wrong reason. Keeping them separate lets the person search exactly
+// the field they mean.
+let searchPOTerm = '';
+let searchVendorTerm = '';
+let searchItemTerm = '';
+let usingSample = true;      // true until the person uploads a real file
+let lastAutoFrom = null, lastAutoTo = null; // tracks auto-set range bounds so we can keep "showing everything" by default
+
+const STORAGE_KEY = 'gr_check_v1';
+
+function loadPersisted(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e){ /* storage unavailable or corrupted - ignore, fall back to sample */ }
+  return null;
+}
+function savePersisted(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ pos: masterPOsRaw, returns: masterReturns })); }
+  catch(e){ /* storage full or unavailable - continue without persisting */ }
+}
+
+/* ---------- Google Sheets backend (Apps Script Web App) ---------- */
+// Baked-in shared Web App URL: every visitor who has never opened Settings in their own
+// browser falls back to this, so the whole team reads the same live Google Sheet by
+// default instead of only whoever configured it locally. Set this to your deployed
+// Apps Script /exec URL, then re-publish index.html.
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbxkDsPw_IojayGY2wquENJwb-4oWyoto_e0ZZMf9pMg6_72HC7kZtGE0CnVBbbq6J9nxw/exec';
+const API_URL_KEY = 'gr_api_url';
+const API_TOKEN_KEY = 'gr_api_token';
+let apiUrl = localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL;
+let apiToken = localStorage.getItem(API_TOKEN_KEY) || '';
+
+function apiEndpoint(){
+  if (!apiUrl) return null;
+  if (!apiToken) return apiUrl;
+  return apiUrl + (apiUrl.indexOf('?') >= 0 ? '&' : '?') + 'token=' + encodeURIComponent(apiToken);
+}
+
+async function fetchFromApi(){
+  const url = apiEndpoint();
+  if (!url) throw new Error('ยังไม่ได้ตั้งค่า URL');
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+async function postToApi(pos, returns){
+  const url = apiEndpoint();
+  if (!url) throw new Error('ยังไม่ได้ตั้งค่า URL');
+  // Sent without an explicit Content-Type so the browser uses text/plain - this keeps
+  // it a "simple request" and avoids a CORS preflight that Apps Script doesn't handle.
+  const res = await fetch(url, { method: 'POST', body: JSON.stringify({ pos, returns }) });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+function poKey(po){ return (po.po||'') + '||' + (po.gor||''); }
+
+function mergePOs(existing, incoming){
+  const map = new Map();
+  existing.forEach(po => map.set(poKey(po), po));
+  incoming.forEach(po => map.set(poKey(po), po)); // newer upload wins on exact duplicate
+  return Array.from(map.values());
+}
+function returnKey(r){ return (r.no||'') + '||' + (r.sc||''); }
+function mergeReturns(existing, incoming){
+  const map = new Map();
+  existing.forEach(r => map.set(returnKey(r), r));
+  incoming.forEach(r => map.set(returnKey(r), r));
+  return Array.from(map.values());
+}
+
+function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+// Google Sheets silently converts numeric-looking text (PO no., supplier code, item
+// code, barcode...) into real numbers when it stores them, so anything read back from
+// the API might arrive as a number instead of a string. Coerce before calling string
+// methods (.trim, .toLowerCase, etc.) on any field that came from the API.
+function str(v){ return (v === null || v === undefined) ? '' : String(v); }
+
+/* dd-mm-yyyy (as printed in the GR report) -> Date, or null if unparsable */
+function parseRptDate(s){
+  if (!s) return null;
+  const m = String(s).trim().match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (!m) return null;
+  const d = new Date(parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10));
+  return isNaN(d.getTime()) ? null : d;
+}
+/* Date -> yyyy-mm-dd for <input type=date> */
+function toInputDate(d){
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function toThaiDate(d){
+  const dd = String(d.getDate()).padStart(2,'0'), mm = String(d.getMonth()+1).padStart(2,'0');
+  return `${dd}-${mm}-${d.getFullYear()}`;
+}
+// Google Sheets silently turns date-like text (e.g. "15-09-2026") into a real Date cell,
+// so a value read back from the API can arrive as a JS Date or as the ISO timestamp string
+// JSON.stringify makes from one (e.g. "2026-09-14T17:00:00.000Z") instead of the plain
+// dd-mm-yyyy text the report prints. Normalize anything we get back to dd-mm-yyyy so both
+// the table display and parseRptDate() (which only understands dd-mm-yyyy) work either way.
+function normalizeRptDateStr(v){
+  if (v === null || v === undefined || v === '') return v;
+  if (typeof v === 'string' && /^\d{1,2}-\d{1,2}-\d{4}$/.test(v.trim())) return v.trim();
+  const d = (v instanceof Date) ? v : new Date(v);
+  if (!isNaN(d.getTime())) return toThaiDate(d);
+  return v;
+}
+
+function classifyItem(o, r){
+  if (o === 0 && r > 0) return 'noorder';
+  if (r < o) return 'short';
+  if (r > o) return 'over';
+  return 'match';
+}
+
+function isDC(sc, sname){
+  const code = str(sc).trim();
+  if (!code) return false;
+  if (code === '920' || code === '890') return true;
+  if (str(sname).indexOf('คลังสินค้า') !== -1) return true;
+  return false;
+}
+
+function enrich(pos){
+  return pos.map(po => {
+    let totalO = 0, totalR = 0;
+    const items = po.items.map(it => {
+      const o = num(it.o), r = num(it.r);
+      totalO += o; totalR += r;
+      const flag = classifyItem(o, r);
+      return {...it, o, r, flag, variance: r - o};
+    });
+    // The PO's own status reflects its NET totals (sum of ordered vs. sum of received),
+    // not the worst individual item - this is what actually answers "did this PO come in
+    // short or over overall", which is what the tabs, KPIs and this row's badge are for.
+    // An item that's individually short or over is still visible per-line in the expanded
+    // detail table below; it just doesn't override the PO-level verdict on its own.
+    const flag = classifyItem(totalO, totalR);
+    return {...po, items, totalO, totalR, totalVar: totalR - totalO, flag, dc: isDC(po.sc, po.sname), _rd: parseRptDate(po.rd)};
+  }).sort((a,b) => {
+    if (a._rd && b._rd) return b._rd - a._rd; // newest received date first
+    return 0;
+  });
+}
+
+function computeStats(pos){
+  const s = { total: pos.length, match:0, short:0, over:0, noorder:0, itemTotal:0, itemNoorder:0 };
+  pos.forEach(po => {
+    s[po.flag]++;
+    po.items.forEach(it => { s.itemTotal++; if (it.flag === 'noorder') s.itemNoorder++; });
+  });
+  return s;
+}
+
+function fmtQty(n){
+  if (Math.abs(n - Math.round(n)) < 0.001) return Math.round(n).toLocaleString('th-TH');
+  return n.toLocaleString('th-TH', {maximumFractionDigits:2});
+}
+
+function flagLabel(f){
+  return {match:'รับครบ', short:'รับขาด', over:'รับเกิน', noorder:'ไม่มี PO'}[f];
+}
+
+function renderMeta(pos){
+  const el = document.getElementById('metaChips');
+  if (!pos.length){ el.innerHTML = ''; return; }
+  const store = pos[0].store || '';
+  const days = [...new Set(pos.map(p => p.rd).filter(Boolean))];
+  el.innerHTML = `
+    <span class="meta-chip">สาขา <b>${store || '129 ลาดกระบัง'}</b></span>
+    <span class="meta-chip">แสดงข้อมูล <b>${days.length}</b> วัน</span>
+    <span class="meta-chip">จำนวนใบสั่งซื้อ <b>${pos.length}</b></span>
+  `;
+}
+
+function renderKPI(stats){
+  const el = document.getElementById('kpiStrip');
+  el.innerHTML = `
+    <div class="kpi"><div class="n num">${stats.total}</div><div class="l">ใบสั่งซื้อทั้งหมด</div></div>
+    <div class="kpi accent"><div class="n num">${stats.itemTotal}</div><div class="l">รายการสินค้าทั้งหมด</div></div>
+    <div class="kpi ok"><div class="n num">${stats.match}</div><div class="l">รับครบตามสั่ง</div></div>
+    <div class="kpi warn"><div class="n num">${stats.short}</div><div class="l">มีรายการรับขาด</div></div>
+    <div class="kpi over"><div class="n num">${stats.over}</div><div class="l">มีรายการรับเกิน</div></div>
+  `;
+}
+
+// Each search box targets one specific field group, so a PO number that happens to look
+// like an item code (or a supplier code) never cross-matches the wrong box.
+function poNoMatches(po, t){
+  if (!t) return true;
+  return str(po.po).toLowerCase().includes(t) || str(po.gor).toLowerCase().includes(t);
+}
+function vendorMatches(po, t){
+  if (!t) return true;
+  return str(po.sname).toLowerCase().includes(t) || str(po.sc).toLowerCase().includes(t);
+}
+// Split so the caller can tell whether a match came only from inside the item list - that
+// row needs to auto-expand, since the matching line isn't visible in the collapsed row.
+function itemLevelMatches(po, t){
+  if (!t) return true;
+  return po.items.some(it =>
+    str(it.d).toLowerCase().includes(t) ||
+    str(it.c).toLowerCase().includes(t) ||
+    str(it.b).toLowerCase().includes(t)
+  );
+}
+function matchesSearch(po, poTerm, vendorTerm, itemTerm){
+  return poNoMatches(po, poTerm) && vendorMatches(po, vendorTerm) && itemLevelMatches(po, itemTerm);
+}
+
+function renderList(){
+  const listEl = document.getElementById('poList');
+  const filtered = currentPOs.filter(po => (activeFlags.has('all') || activeFlags.has(po.flag)) &&
+    matchesSearch(po, searchPOTerm, searchVendorTerm, searchItemTerm));
+
+  const matchCount = currentPOs.filter(po => po.flag === 'match').length;
+  const hidingMatches = !activeFlags.has('all') && matchCount > 0;
+  document.getElementById('countLine').textContent =
+    `แสดง ${filtered.length} จาก ${currentPOs.length} ใบสั่งซื้อ` +
+    (hidingMatches ? ` · ไม่แสดง PO ที่รับครบแล้ว ${matchCount} ใบ (ดูยอดรวมได้ที่ด้านบน หรือกด "ทั้งหมด" เพื่อแสดงทุกใบ)` : '');
+
+  if (!currentPOs.length){
+    listEl.innerHTML = `<tr><td colspan="10"><div class="empty-state">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v18M3 12h18"/></svg>
+      <h3>ยังไม่มีข้อมูล</h3>
+      <div>กด "⚙ อัปโหลดไฟล์ / ตั้งค่า" ด้านบนเพื่ออัปโหลดไฟล์รายงานวันนี้</div>
+    </div></td></tr>`;
+    return;
+  }
+  if (!filtered.length){
+    listEl.innerHTML = `<tr><td colspan="10"><div class="empty-state">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <h3>ไม่พบรายการที่ตรงกับเงื่อนไข</h3>
+      <div>ลองเปลี่ยนคำค้นหาหรือตัวกรอง</div>
+    </div></td></tr>`;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map((po, idx) => {
+    const t = searchItemTerm.toLowerCase();
+    const itemRows = po.items.map(it => {
+      const itemMatches = t && (
+        str(it.d).toLowerCase().includes(t) ||
+        str(it.c).toLowerCase().includes(t) ||
+        str(it.b).toLowerCase().includes(t)
+      );
+      return `
+      <tr class="${it.flag !== 'match' ? 'row-'+it.flag : ''}${itemMatches ? ' row-match-hit' : ''}">
+        <td>${escapeHtml(it.d)}<div class="po-sub">รหัส ${escapeHtml(it.c||'-')} · บาร์โค้ด ${escapeHtml(it.b||'-')}</div></td>
+        <td>${escapeHtml(it.u||'-')}</td>
+        <td class="num">${it.p != null ? num(it.p).toLocaleString('th-TH',{minimumFractionDigits:2}) : '-'}</td>
+        <td class="num">${fmtQty(it.o)}</td>
+        <td class="num">${fmtQty(it.r)}</td>
+        <td class="num">${it.variance>0?'+':''}${fmtQty(it.variance)}</td>
+        <td><span class="item-flag" style="color:var(--${it.flag==='match'?'ok':it.flag==='short'?'warn':it.flag==='over'?'over':'alert'})"><span class="dot" style="background:var(--${it.flag==='match'?'ok':it.flag==='short'?'warn':it.flag==='over'?'over':'alert'})"></span>${flagLabel(it.flag)}</span></td>
+      </tr>`;
+    }).join('');
+
+    const rowId = 'po-' + idx;
+    const supplierDisplay = escapeHtml(po.sname || (po.dc ? 'คลังสินค้า DC (ไม่มีชื่อผู้ขาย)' : '-'));
+    // Only auto-open a row when the item search box has a term - a hit there is always
+    // inside the item list, which isn't visible in the collapsed row, unlike a PO-no. or
+    // vendor match which is already shown right there. (reuses `t` from above)
+    const autoOpen = !!searchItemTerm && itemLevelMatches(po, t);
+
+    return `
+    <tr class="po-row${autoOpen ? ' open' : ''}" data-target="${rowId}">
+      <td><svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="9 18 15 12 9 6"/></svg></td>
+      <td class="num">${escapeHtml(po.po||'-')}</td>
+      <td class="num">${escapeHtml(po.gor||'-')}</td>
+      <td class="num supplier-code">${escapeHtml(po.sc||'-')}</td>
+      <td class="col-supplier"><span class="supplier-name">${supplierDisplay}</span>${po.dc ? '<span class="dc-tag">DC</span>' : ''}</td>
+      <td class="num">${escapeHtml(po.rd||'-')}</td>
+      <td class="num">${fmtQty(po.totalO)}</td>
+      <td class="num">${fmtQty(po.totalR)}</td>
+      <td class="num">${po.totalVar>0?'+':''}${fmtQty(po.totalVar)}</td>
+      <td><span class="flag-badge flag-${po.flag}"><span class="dot"></span>${flagLabel(po.flag)}</span></td>
+    </tr>
+    <tr class="po-detail-row${autoOpen ? ' show' : ''}" id="${rowId}">
+      <td colspan="10">
+        <div class="po-body">
+          <div class="po-detail-meta">
+            <span>ประเภท: <b>${escapeHtml(po.type||'-')}</b></span>
+            <span>สถานะ: <b>${escapeHtml(po.status||'-')}</b></span>
+            <span>วันที่สั่ง: <b>${escapeHtml(po.od||'-')}</b></span>
+            <span>จำนวนรายการสินค้า: <b>${po.items.length}</b></span>
+          </div>
+          <table class="items">
+            <thead><tr>
+              <th>รายการสินค้า</th><th>หน่วย</th><th class="num">ราคาขาย</th>
+              <th class="num">สั่ง</th><th class="num">รับ</th><th class="num">ผลต่าง</th><th>สถานะ</th>
+            </tr></thead>
+            <tbody>${itemRows}</tbody>
+            <tfoot>
+              <tr class="items-total-row">
+                <td colspan="3">รวมทั้งหมด (${po.items.length} รายการ)</td>
+                <td class="num">${fmtQty(po.totalO)}</td>
+                <td class="num">${fmtQty(po.totalR)}</td>
+                <td class="num">${po.totalVar>0?'+':''}${fmtQty(po.totalVar)}</td>
+                <td><span class="flag-badge flag-${po.flag}"><span class="dot"></span>${flagLabel(po.flag)}</span></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  listEl.querySelectorAll('tr.po-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const detail = document.getElementById(row.dataset.target);
+      const willOpen = !detail.classList.contains('show');
+      detail.classList.toggle('show', willOpen);
+      row.classList.toggle('open', willOpen);
+    });
+  });
+}
+
+function escapeHtml(s){
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderReturns(returns){
+  const section = document.getElementById('returnsSection');
+  const body = document.getElementById('returnsBody');
+  if (!returns || !returns.length){ section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  body.innerHTML = returns.map((r, idx) => {
+    // Most claims/returns now carry their item lines (matched from the GORL20 "Claim" block
+    // with the same number - see mergeClaimsIntoReturns at upload time), so the row expands
+    // to show exactly which product(s) and the +/- per line, same as a PO row. A return with
+    // no match (e.g. an older upload saved before this feature existed, or a report that
+    // genuinely has no matching GORL20 block) just shows as a plain, non-expandable row.
+    const hasItems = r.items && r.items.length;
+    const rowId = 'ret-' + idx;
+    const summaryCells = `
+      <td class="num">${escapeHtml(r.rd || '-')}</td>
+      <td class="num">${escapeHtml(r.no)}${r.gor ? `<div class="po-sub">GOR ${escapeHtml(r.gor)}</div>` : ''}</td>
+      <td>${escapeHtml(r.typeDesc)}</td>
+      <td class="num">${escapeHtml(r.sc)}</td>
+      <td>${escapeHtml(r.sname)}${isDC(r.sc, r.sname) ? '<span class="dc-tag">DC</span>' : ''}</td>
+      <td class="num">${r.n != null ? fmtQty(r.n) : '-'}</td>
+      <td class="num">${fmtQty(r.o)}</td>
+      <td class="num">${fmtQty(r.r)}</td>
+      <td class="num">${(r.r-r.o)>0?'+':''}${fmtQty(r.r-r.o)}</td>`;
+
+    if (!hasItems){
+      return `<tr><td></td>${summaryCells}</tr>`;
+    }
+
+    const itemRows = r.items.map(it => {
+      const o = num(it.o), rc = num(it.r);
+      const flag = classifyItem(o, rc);
+      const variance = rc - o;
+      return `
+      <tr class="${flag !== 'match' ? 'row-'+flag : ''}">
+        <td>${escapeHtml(it.d)}<div class="po-sub">รหัส ${escapeHtml(it.c||'-')} · บาร์โค้ด ${escapeHtml(it.b||'-')}</div></td>
+        <td>${escapeHtml(it.u||'-')}</td>
+        <td class="num">${it.p != null ? num(it.p).toLocaleString('th-TH',{minimumFractionDigits:2}) : '-'}</td>
+        <td class="num">${fmtQty(o)}</td>
+        <td class="num">${fmtQty(rc)}</td>
+        <td class="num">${variance>0?'+':''}${fmtQty(variance)}</td>
+        <td><span class="item-flag" style="color:var(--${flag==='match'?'ok':flag==='short'?'warn':flag==='over'?'over':'alert'})"><span class="dot" style="background:var(--${flag==='match'?'ok':flag==='short'?'warn':flag==='over'?'over':'alert'})"></span>${flagLabel(flag)}</span></td>
+      </tr>`;
+    }).join('');
+
+    return `
+    <tr class="po-row" data-target="${rowId}">
+      <td><svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="9 18 15 12 9 6"/></svg></td>
+      ${summaryCells}
+    </tr>
+    <tr class="po-detail-row" id="${rowId}">
+      <td colspan="10">
+        <div class="po-body">
+          <table class="items">
+            <thead><tr>
+              <th>รายการสินค้า</th><th>หน่วย</th><th class="num">ราคาขาย</th>
+              <th class="num">สั่งคืน</th><th class="num">รับคืนจริง</th><th class="num">ผลต่าง</th><th>สถานะ</th>
+            </tr></thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  body.querySelectorAll('tr.po-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const detail = document.getElementById(row.dataset.target);
+      const willOpen = !detail.classList.contains('show');
+      detail.classList.toggle('show', willOpen);
+      row.classList.toggle('open', willOpen);
+    });
+  });
+}
+
+/* ---------- Date range bounds ---------- */
+function setupDateRangeBounds(){
+  const allDates = masterPOsRaw.map(po => parseRptDate(po.rd)).filter(Boolean).sort((a,b) => a-b);
+  const fromInput = document.getElementById('dateFrom');
+  const toInput = document.getElementById('dateTo');
+  if (!allDates.length){
+    fromInput.removeAttribute('min'); fromInput.removeAttribute('max');
+    toInput.removeAttribute('min'); toInput.removeAttribute('max');
+    return;
+  }
+  const minStr = toInputDate(allDates[0]);
+  const maxStr = toInputDate(allDates[allDates.length-1]);
+  fromInput.min = minStr; fromInput.max = maxStr;
+  toInput.min = minStr; toInput.max = maxStr;
+  // Only auto-move the value when the user hasn't manually narrowed it away from the
+  // previous full range - this keeps "show everything" as the default as new days come in.
+  if (!fromInput.value || fromInput.value === lastAutoFrom) { fromInput.value = minStr; }
+  if (!toInput.value || toInput.value === lastAutoTo) { toInput.value = maxStr; }
+  lastAutoFrom = fromInput.value === minStr ? minStr : lastAutoFrom;
+  lastAutoTo = toInput.value === maxStr ? maxStr : lastAutoTo;
+}
+
+function getDateRangeFilter(){
+  const fromVal = document.getElementById('dateFrom').value;
+  const toVal = document.getElementById('dateTo').value;
+  const from = fromVal ? new Date(fromVal + 'T00:00:00') : null;
+  const to = toVal ? new Date(toVal + 'T23:59:59') : null;
+  return { from, to };
+}
+
+function renderRangeInfo(){
+  const allDates = masterPOsRaw.map(po => parseRptDate(po.rd)).filter(Boolean).sort((a,b) => a-b);
+  const el = document.getElementById('rangeInfo');
+  if (!allDates.length){ el.textContent = ''; return; }
+  const totalDays = new Set(masterPOsRaw.map(po => po.rd).filter(Boolean)).size;
+  el.innerHTML = `มีข้อมูลสะสมทั้งหมด <b>${totalDays}</b> วัน (${toThaiDate(allDates[0])} &ndash; ${toThaiDate(allDates[allDates.length-1])})`;
+}
+
+/* ---------- Master pipeline: accumulate -> persist -> filter by date -> render ---------- */
+function applyFiltersAndRender(){
+  const enrichedAll = enrich(masterPOsRaw);
+  const { from, to } = getDateRangeFilter();
+  currentPOs = enrichedAll.filter(po => {
+    if (!po._rd) return true; // keep undated rows visible rather than hiding them silently
+    if (from && po._rd < from) return false;
+    if (to && po._rd > to) return false;
+    return true;
+  });
+  // Returns follow the same date-range filter as POs, and are shown newest-first so a
+  // fresh claim is the first thing visible rather than buried under older ones.
+  currentReturns = masterReturns
+    .filter(r => {
+      const d = parseRptDate(r.rd);
+      if (!d) return true; // keep undated rows visible rather than hiding them silently
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    })
+    .slice()
+    .sort((a, b) => {
+      const da = parseRptDate(a.rd), db = parseRptDate(b.rd);
+      if (da && db) return db - da;
+      return 0;
+    });
+  renderMeta(currentPOs);
+  renderKPI(computeStats(currentPOs));
+  renderList();
+  renderReturns(currentReturns);
+  renderRangeInfo();
+}
+
+function loadData(rawPOs, rawReturns, opts){
+  opts = opts || {};
+  const replace = !!opts.replace;
+  const persist = opts.persist !== false;
+
+  // Drop rows with neither a PO no. nor a GOR no. - these are corrupted/blank records
+  // (e.g. left over in the sheet from before the parser was fixed) and should never be
+  // shown as a real receipt line. Also normalize date fields in case they came back from
+  // Google Sheets as a Date/ISO timestamp instead of plain dd-mm-yyyy text.
+  const cleanedPOsRaw = (rawPOs || [])
+    .filter(po => po && (po.po || po.gor))
+    .map(po => ({ ...po, rd: normalizeRptDateStr(po.rd), od: normalizeRptDateStr(po.od) }));
+  const cleanedReturns = (rawReturns || [])
+    .map(r => ({ ...r, rd: normalizeRptDateStr(r.rd) }));
+
+  // Run the claim/PO match-up here too (not just once at upload time in parseWorkbook) so it
+  // also applies to data loaded from localStorage or Google Sheets - both can still hold
+  // claim-type "PO" rows saved before this matching existed, and this reconciles them on
+  // every load rather than only for a brand new upload.
+  const cleanedPOs = mergeClaimsIntoReturns(cleanedPOsRaw, cleanedReturns);
+
+  masterPOsRaw = replace ? cleanedPOs : mergePOs(masterPOsRaw, cleanedPOs);
+  masterReturns = replace ? cleanedReturns : mergeReturns(masterReturns, cleanedReturns);
+
+  setupDateRangeBounds();
+  if (persist) savePersisted();
+  applyFiltersAndRender();
+}
+
+/* ---------- Date range controls ---------- */
+// Picking a date just marks the range as manually chosen; the filter is applied only when
+// the user presses "ค้นหา" (or Enter), so choosing a wide range of accumulated days doesn't
+// re-render on every single click.
+document.getElementById('dateFrom').addEventListener('change', () => { lastAutoFrom = null; });
+document.getElementById('dateTo').addEventListener('change', () => { lastAutoTo = null; });
+document.getElementById('applyRangeBtn').addEventListener('click', () => { applyFiltersAndRender(); });
+['dateFrom','dateTo'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter'){ e.preventDefault(); applyFiltersAndRender(); }
+  });
+});
+document.getElementById('resetRangeBtn').addEventListener('click', () => {
+  lastAutoFrom = null; lastAutoTo = null;
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  setupDateRangeBounds();
+  applyFiltersAndRender();
+});
+document.getElementById('clearDataBtn').addEventListener('click', async () => {
+  const msg = apiUrl
+    ? 'ล้างข้อมูลที่แคชไว้ในเบราว์เซอร์นี้ใช่หรือไม่? (ข้อมูลบน Google Sheets จะไม่หายไป ระบบจะโหลดจาก Sheets ใหม่ทันที)'
+    : 'ล้างข้อมูลที่สะสมไว้ทั้งหมดในเบราว์เซอร์นี้ใช่หรือไม่? (ไฟล์ต้นฉบับจะไม่หายไป แต่ต้องอัปโหลดใหม่)';
+  if (!confirm(msg)) return;
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
+  masterPOsRaw = []; masterReturns = [];
+  document.getElementById('dateFrom').value = ''; document.getElementById('dateTo').value = '';
+  lastAutoFrom = null; lastAutoTo = null;
+
+  if (apiUrl){
+    document.getElementById('fileNameLbl').textContent = 'ล้างแคชแล้ว กำลังโหลดข้อมูลจาก Google Sheets ใหม่...';
+    try {
+      const data = await fetchFromApi();
+      usingSample = false;
+      loadData(data.pos || [], data.returns || [], { replace: true, persist: true });
+      document.getElementById('fileNameLbl').textContent = `โหลดจาก Google Sheets สำเร็จ (${(data.pos||[]).length} PO)`;
+    } catch(err){
+      usingSample = true;
+      document.getElementById('fileNameLbl').textContent = 'โหลดจาก Google Sheets ไม่สำเร็จ: ' + err.message;
+      loadData(SAMPLE_DATA.pos, SAMPLE_DATA.returns, { replace: true, persist: false });
+    }
+  } else {
+    usingSample = true;
+    document.getElementById('fileNameLbl').textContent = 'ล้างข้อมูลแล้ว · ยังไม่ได้อัปโหลด';
+    loadData(SAMPLE_DATA.pos, SAMPLE_DATA.returns, { replace: true, persist: false });
+  }
+});
+
+/* ---------- Tabs & search ----------
+   "รับขาด"/"รับเกิน" toggle independently so either can be switched off to narrow down to
+   just one problem type. "ทั้งหมด" is a separate meta-tab: picking it shows every PO
+   (including fully-received ones) and deselects the other two, since mixing "all" with a
+   partial filter doesn't mean anything; picking รับขาด/รับเกิน while "all" is active turns
+   "all" back off. At least one tab must stay on - turning off the last active one would
+   leave an empty, confusing table with no way back except reselecting it. */
+document.getElementById('tabs').addEventListener('click', e => {
+  const btn = e.target.closest('.tab');
+  if (!btn) return;
+  const flag = btn.dataset.flag;
+  const allBtn = document.querySelector('#tabs .tab[data-flag="all"]');
+
+  if (flag === 'all'){
+    if (!activeFlags.has('all')){
+      activeFlags.clear();
+      activeFlags.add('all');
+      document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.flag === 'all'));
+    }
+    // "all" is already the only active tab - leave it (can't deactivate the last active tab).
+  } else if (activeFlags.has(flag)){
+    if (activeFlags.size > 1){
+      activeFlags.delete(flag);
+      btn.classList.remove('active');
+    }
+  } else {
+    activeFlags.delete('all');
+    allBtn.classList.remove('active');
+    activeFlags.add(flag);
+    btn.classList.add('active');
+  }
+  renderList();
+});
+document.getElementById('searchPO').addEventListener('input', e => {
+  searchPOTerm = e.target.value.trim();
+  renderList();
+});
+document.getElementById('searchVendor').addEventListener('input', e => {
+  searchVendorTerm = e.target.value.trim();
+  renderList();
+});
+document.getElementById('searchItem').addEventListener('input', e => {
+  searchItemTerm = e.target.value.trim();
+  renderList();
+});
+
+/* ---------- Light/dark theme toggle ----------
+   Defaults to light on first visit (set in the head script before paint, see there for why).
+   This handler only runs on an explicit click, so once someone picks a theme it sticks,
+   overriding the phone's own dark-mode setting from then on. */
+const THEME_KEY = 'gr_theme';
+function applyTheme(theme){
+  document.documentElement.dataset.theme = theme;
+  document.getElementById('themeToggleBtn').textContent = theme === 'dark' ? '🌙' : '☀';
+  try { localStorage.setItem(THEME_KEY, theme); } catch(e){ /* ignore if storage is unavailable */ }
+}
+applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+document.getElementById('themeToggleBtn').addEventListener('click', () => {
+  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+});
+
+/* ---------- Google Sheets settings panel ---------- */
+document.getElementById('apiUrlInput').value = apiUrl;
+document.getElementById('apiTokenInput').value = apiToken;
+if (apiUrl){
+  document.getElementById('apiStatus').textContent = 'ตั้งค่าไว้แล้ว กำลังตรวจสอบการเชื่อมต่อ...';
+}
+document.getElementById('adminToggleBtn').addEventListener('click', () => {
+  document.getElementById('uploadBox').classList.toggle('show');
+  document.getElementById('adminToggleBtn').classList.toggle('open');
+});
+document.getElementById('settingsToggle').addEventListener('click', () => {
+  document.getElementById('settingsPanel').classList.toggle('show');
+});
+function markUploadSuccess(){
+  document.getElementById('uploadSuccessBadge').style.display = 'inline-flex';
+  document.getElementById('fileNameLbl').classList.add('success');
+}
+function clearUploadSuccess(){
+  document.getElementById('uploadSuccessBadge').style.display = 'none';
+  document.getElementById('fileNameLbl').classList.remove('success');
+}
+document.getElementById('saveApiBtn').addEventListener('click', async () => {
+  apiUrl = document.getElementById('apiUrlInput').value.trim();
+  apiToken = document.getElementById('apiTokenInput').value.trim();
+  localStorage.setItem(API_URL_KEY, apiUrl);
+  localStorage.setItem(API_TOKEN_KEY, apiToken);
+  const statusEl = document.getElementById('apiStatus');
+  if (!apiUrl){
+    statusEl.textContent = 'ยังไม่ได้ตั้งค่า Google Sheets · ข้อมูลจะถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น';
+    return;
+  }
+  statusEl.textContent = 'กำลังทดสอบการเชื่อมต่อ...';
+  try {
+    const data = await fetchFromApi();
+    statusEl.textContent = `เชื่อมต่อสำเร็จ ✓ พบข้อมูล ${(data.pos||[]).length} PO บน Google Sheets`;
+    usingSample = false;
+    loadData(data.pos || [], data.returns || [], { replace: true, persist: true });
+  } catch(err){
+    statusEl.textContent = 'เชื่อมต่อไม่สำเร็จ: ' + err.message + ' (ตรวจสอบ URL และการ Deploy ของ Apps Script)';
+  }
+});
+document.getElementById('syncNowBtn').addEventListener('click', async () => {
+  if (isBusy) return;
+  if (!apiUrl){
+    document.getElementById('settingsPanel').classList.add('show');
+    document.getElementById('apiStatus').textContent = 'กรุณาตั้งค่า Google Sheets ก่อนจึงจะซิงค์ได้';
+    return;
+  }
+  setBusy(true);
+  document.getElementById('fileNameLbl').textContent = 'กำลังรีเฟรชข้อมูลล่าสุดจาก Google Sheets... (ไม่ได้อัปโหลดไฟล์ใดๆ)';
+  try {
+    const data = await fetchFromApi();
+    usingSample = false;
+    loadData(data.pos || [], data.returns || [], { replace: true, persist: true });
+    document.getElementById('fileNameLbl').textContent = `รีเฟรชสำเร็จ (${(data.pos||[]).length} PO)`;
+  } catch(err){
+    document.getElementById('fileNameLbl').textContent = 'รีเฟรชไม่สำเร็จ: ' + err.message;
+  } finally {
+    setBusy(false);
+  }
+});
+
+/* ---------- Excel parsing (mirrors GORL20 / GORL29 / GORL35 export layout) ---------- */
+function cellStr(row, idx){
+  if (idx >= row.length) return null;
+  const v = row[idx];
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'string'){ const t = v.trim(); return t === '' ? null : t; }
+  return v;
+}
+
+// Finds the column index of a cell whose trimmed text exactly matches `label`.
+// The report's column widths shift between stores/exports (seen: 23-col and
+// 29-col layouts of the same GORL20 report), so every field is located by its
+// label text rather than a fixed column number.
+function findLabelIdx(row, label){
+  for (let i = 0; i < row.length; i++){
+    if (cellStr(row, i) === label) return i;
+  }
+  return -1;
+}
+// Returns the first non-empty cell to the right of a label's column (the label
+// and its value are printed a few columns apart, with blank cells between).
+function valueAfterLabel(row, label){
+  const idx = findLabelIdx(row, label);
+  if (idx < 0) return null;
+  for (let i = idx + 1; i < row.length; i++){
+    const v = cellStr(row, i);
+    if (v !== null) return v;
+  }
+  return null;
+}
+function cleanBarcode(v){
+  if (v == null) return null;
+  let s = String(v);
+  if (s.endsWith('.0')) s = s.slice(0, -2);
+  return s;
+}
+
+function parseGORL20Sheet(rows){
+  const pos = [];
+  let i = 0;
+  const n = rows.length;
+  while (i < n){
+    const row = rows[i] || [];
+    const c1 = cellStr(row, 1);
+    if (c1 && String(c1).indexOf('Goods Received Summary') !== -1){
+      let block = { items: [] };
+      let j = i, limit = Math.min(i + 12, n), itemHeaderIdx = null, itemCols = null;
+      while (j < limit){
+        const r = rows[j] || [];
+        const c0 = cellStr(r, 0);
+        if (c0 === 'To Store'){
+          block.store = cellStr(r, 1);
+          block.po = valueAfterLabel(r, 'Order:');
+          block.type = valueAfterLabel(r, 'Type:');
+          block.status = valueAfterLabel(r, 'Status:');
+        } else if (c0 === 'Supplier:'){
+          block.supplierRaw = cellStr(r, 1);
+          block.od = valueAfterLabel(r, 'Order Date:');
+          block.rd = valueAfterLabel(r, 'Received Date:');
+        } else if (c0 === 'Supplier Name'){
+          block.sname = cellStr(r, 1);
+        } else if (c0 === 'Address'){
+          block.gor = valueAfterLabel(r, 'GOR No:');
+        } else if (c0 === 'Item Description'){
+          itemHeaderIdx = j;
+          // Description is always the row's first column; everything else is
+          // located by its header label so column-width shifts don't matter.
+          itemCols = {
+            unit: findLabelIdx(r, 'Makro Unit'),
+            price: findLabelIdx(r, 'Selling Price'),
+            code: findLabelIdx(r, 'Item'),
+            barcode: findLabelIdx(r, 'Barcode'),
+            ordered: findLabelIdx(r, 'Ordered'),
+            received: findLabelIdx(r, 'Received'),
+          };
+          break;
+        }
+        j++;
+      }
+      if (itemHeaderIdx !== null && itemCols){
+        let k = itemHeaderIdx + 2;
+        while (k < n){
+          const r = rows[k] || [];
+          const c0raw = r[0];
+          const c0 = (c0raw === null || c0raw === undefined) ? null : String(c0raw).trim();
+          if (!c0 || c0.indexOf('TOTAL') !== -1) break;
+          block.items.push({
+            d: c0,
+            u: itemCols.unit >= 0 ? cellStr(r, itemCols.unit) : null,
+            p: itemCols.price >= 0 ? cellStr(r, itemCols.price) : null,
+            c: itemCols.code >= 0 ? cellStr(r, itemCols.code) : null,
+            b: itemCols.barcode >= 0 ? cleanBarcode(cellStr(r, itemCols.barcode)) : null,
+            o: itemCols.ordered >= 0 ? cellStr(r, itemCols.ordered) : null,
+            r: itemCols.received >= 0 ? cellStr(r, itemCols.received) : null,
+          });
+          k++;
+        }
+      }
+      const m = (block.supplierRaw || '').match(/^(\d+)/);
+      block.sc = m ? m[1] : '';
+      delete block.supplierRaw;
+      // Skip blocks where neither a PO no. nor a GOR no. was found - these aren't a real
+      // receipt line and would otherwise show up as a bogus "-" row in the table.
+      if (block.po || block.gor) pos.push(block);
+      i = j;
+    } else {
+      i++;
+    }
+  }
+  return pos;
+}
+
+function parseGORL35Sheet(rows){
+  const out = [];
+  let headerIdx = -1;
+  let reportDate = null;
+  // The report's "Date :" line sits above the header row and applies to every return in
+  // this sheet (GORL35 is one date per report, not per row, unlike GORL20's per-PO date).
+  for (let i = 0; i < rows.length; i++){
+    const r = rows[i] || [];
+    if (cellStr(r,0) === 'SUPPL TYPE' && cellStr(r,2) === 'RETURN NO'){ headerIdx = i; break; }
+    const d = valueAfterLabel(r, 'Date :');
+    if (d) reportDate = d;
+  }
+  if (headerIdx === -1) return out;
+  // Located by header label (not fixed column index) for the same reason GORL20 needed it:
+  // column widths can shift between store/export layouts.
+  const headerRow = rows[headerIdx] || [];
+  const col = {
+    suppType: findLabelIdx(headerRow, 'SUPPL TYPE'),
+    typeDesc: findLabelIdx(headerRow, 'TYPE DESC'),
+    returnNo: findLabelIdx(headerRow, 'RETURN NO'),
+    gor: findLabelIdx(headerRow, 'GOR NO'),
+    sc: findLabelIdx(headerRow, 'SUPPL NO'),
+    sname: findLabelIdx(headerRow, 'NAME'),
+    o: findLabelIdx(headerRow, 'TOTAL ORD QTY'),
+    r: findLabelIdx(headerRow, 'TOTAL GOR QTY'),
+    n: findLabelIdx(headerRow, 'TOTAL NO RETURNS'),
+  };
+  for (let i = headerIdx + 1; i < rows.length; i++){
+    const r = rows[i] || [];
+    const suppType = col.suppType >= 0 ? cellStr(r, col.suppType) : null;
+    if (!suppType) continue;
+    const returnNo = col.returnNo >= 0 ? cellStr(r, col.returnNo) : null;
+    if (!returnNo) continue;
+    out.push({
+      typeDesc: col.typeDesc >= 0 ? cellStr(r, col.typeDesc) : null,
+      no: returnNo,
+      gor: col.gor >= 0 ? cellStr(r, col.gor) : null,
+      sc: col.sc >= 0 ? cellStr(r, col.sc) : null,
+      sname: col.sname >= 0 ? cellStr(r, col.sname) : null,
+      o: col.o >= 0 ? num(cellStr(r, col.o)) : 0,
+      r: col.r >= 0 ? num(cellStr(r, col.r)) : 0,
+      // Number of SKU lines inside this one claim/return - the GORL35 export only gives a
+      // count, not the item names themselves, so this is the closest we can show to "which
+      // item" without data the report doesn't contain.
+      n: col.n >= 0 ? num(cellStr(r, col.n)) : null,
+      rd: reportDate,
+    });
+  }
+  return out;
+}
+
+function isSummarySheet(rows){
+  return rows.some(r => (r||[]).some(c => typeof c === 'string' && c.indexOf('Goods Received Summary') !== -1));
+}
+function isReturnsSheet(rows){
+  return rows.some(r => (r||[]).some(c => typeof c === 'string' && c.indexOf('Return & Deposit') !== -1));
+}
+
+// A claim/return shows up TWICE in the same export: once as its own summary line in
+// GORL35 (Sheet3 - no item detail, just totals), and once as a regular-looking "PO" block
+// in GORL20 (Sheet1/2, type "Claim") that has the actual item lines. Same transaction, same
+// number (the GORL35 "RETURN NO" equals the GORL20 "Order:" number) - so rather than show
+// it as a confusing no-PO-number "receipt" in the main PO table, pull its item lines over
+// into the matching return record and drop it from the PO list.
+function mergeClaimsIntoReturns(pos, returns){
+  const keptPos = [];
+  pos.forEach(po => {
+    const isClaim = str(po.type).trim().toLowerCase() === 'claim';
+    const match = isClaim && po.po ? returns.find(r => r.no && str(r.no) === str(po.po)) : null;
+    if (match){
+      match.items = po.items;
+    } else {
+      keptPos.push(po);
+    }
+  });
+  return keptPos;
+}
+
+function parseWorkbook(wb){
+  let pos = [], returns = [];
+  wb.SheetNames.forEach(name => {
+    const ws = wb.Sheets[name];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+    if (isReturnsSheet(rows)){
+      returns = returns.concat(parseGORL35Sheet(rows));
+    } else if (isSummarySheet(rows)){
+      pos = pos.concat(parseGORL20Sheet(rows));
+    }
+  });
+  pos = mergeClaimsIntoReturns(pos, returns);
+  return { pos, returns };
+}
+
+/* ---------- Upload handling ----------
+   Two-step by design: picking a file only stages it (and shows its name); nothing is
+   parsed or sent until "2) อัปโหลด" is pressed. This is what stops an admin who double
+   clicks "เลือกไฟล์" or picks the same file twice from silently triggering two uploads -
+   with the old one-step button, opening the file dialog again and re-picking the same
+   file could and did fire a second full upload. Buttons are also disabled for the whole
+   duration of an upload so a second click can't start an overlapping request while the
+   first is still in flight. */
+const uploadBox = document.getElementById('uploadBox');
+const fileInput = document.getElementById('fileInput');
+const uploadBtnEl = document.getElementById('uploadBtn');
+const confirmUploadBtnEl = document.getElementById('confirmUploadBtn');
+const syncNowBtnEl = document.getElementById('syncNowBtn');
+let pendingFile = null;
+let isBusy = false;
+
+function setBusy(busy){
+  isBusy = busy;
+  uploadBtnEl.disabled = busy;
+  syncNowBtnEl.disabled = busy;
+  confirmUploadBtnEl.disabled = busy || !pendingFile;
+}
+
+function stageFile(file){
+  if (!file || isBusy) return;
+  pendingFile = file;
+  clearUploadSuccess();
+  document.getElementById('fileNameLbl').textContent = `เลือกไฟล์แล้ว: ${file.name} · กด "2) อัปโหลด" เพื่อยืนยัน`;
+  confirmUploadBtnEl.disabled = false;
+}
+
+uploadBtnEl.addEventListener('click', () => fileInput.click());
+confirmUploadBtnEl.addEventListener('click', () => {
+  if (isBusy || !pendingFile) return;
+  const file = pendingFile;
+  pendingFile = null;
+  handleFile(file);
+});
+
+function handleFile(file){
+  if (!file) return;
+  setBusy(true);
+  clearUploadSuccess();
+  document.getElementById('fileNameLbl').textContent = 'กำลังประมวลผล ' + file.name + ' ...';
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    // fileInput is reset up front (not just pendingFile) so choosing the exact same file
+    // again later still fires a 'change' event - browsers otherwise stay silent on
+    // re-selecting an unchanged file path. setBusy(false) is deferred to the outer finally
+    // so it only re-enables the buttons once every awaited step below (including the
+    // Google Sheets save) has actually finished - not just once the file bytes were read.
+    fileInput.value = '';
+    try {
+      let pos, returns;
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        ({ pos, returns } = parseWorkbook(wb));
+        if (!pos.length){
+          document.getElementById('fileNameLbl').textContent = 'ไม่พบรูปแบบรายงาน GORL 20 ในไฟล์นี้ ลองตรวจสอบไฟล์อีกครั้ง';
+          return;
+        }
+      } catch (err){
+        document.getElementById('fileNameLbl').textContent = 'เกิดข้อผิดพลาดในการอ่านไฟล์: ' + err.message;
+        return;
+      }
+
+      if (apiUrl){
+        document.getElementById('fileNameLbl').textContent = 'กำลังบันทึกขึ้น Google Sheets...';
+        try {
+          const fresh = await postToApi(pos, returns);
+          usingSample = false;
+          loadData(fresh.pos || [], fresh.returns || [], { replace: true, persist: true });
+          document.getElementById('fileNameLbl').textContent =
+            `บันทึกขึ้น Google Sheets สำเร็จ (ไฟล์นี้ ${pos.length} PO · รวมทั้งหมด ${(fresh.pos||[]).length} PO)`;
+          markUploadSuccess();
+          return;
+        } catch(err){
+          document.getElementById('fileNameLbl').textContent =
+            'บันทึกขึ้น Google Sheets ไม่สำเร็จ (' + err.message + ') · เก็บไว้ในเบราว์เซอร์นี้ก่อน';
+          // fall through to the local-only path below so the upload isn't lost
+        }
+      }
+
+      const replace = usingSample;
+      usingSample = false;
+      loadData(pos, returns, { replace, persist: true });
+      if (!apiUrl){
+        const daysNow = new Set(masterPOsRaw.map(p => p.rd).filter(Boolean)).size;
+        document.getElementById('fileNameLbl').textContent =
+          `โหลดสำเร็จ: ${file.name} (${pos.length} PO) · มีข้อมูลสะสม ${daysNow} วัน (เก็บในเบราว์เซอร์นี้เท่านั้น)`;
+        markUploadSuccess();
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+  reader.onerror = () => {
+    document.getElementById('fileNameLbl').textContent = 'อ่านไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง';
+    setBusy(false);
+  };
+  reader.readAsArrayBuffer(file);
+}
+fileInput.addEventListener('change', e => stageFile(e.target.files[0]));
+['dragenter','dragover'].forEach(ev => uploadBox.addEventListener(ev, e => { e.preventDefault(); uploadBox.classList.add('dragover'); }));
+['dragleave','drop'].forEach(ev => uploadBox.addEventListener(ev, e => { e.preventDefault(); uploadBox.classList.remove('dragover'); }));
+uploadBox.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) stageFile(f); });
+
+/* ---------- Init: render something instantly (cache/sample), then refresh from Google
+   Sheets in the background ---------- */
+// A Google Sheets request always has to round-trip to an Apps Script server and read the
+// whole sheet, so it's seconds slower than localStorage, which is instant and local. To
+// avoid a blank/loading page for that whole time, we render whatever this browser already
+// has cached first (or the bundled sample if nothing is cached yet), then fetch the live
+// data in the background and swap it in the moment it arrives - the table never sits empty
+// waiting on the network.
+(async function init(){
+  const persisted = loadPersisted();
+  if (persisted && persisted.pos && persisted.pos.length){
+    usingSample = false;
+    document.getElementById('fileNameLbl').textContent =
+      `กำลังแสดงข้อมูลที่บันทึกไว้ล่าสุด (${persisted.pos.length} PO)` + (apiUrl ? ' · กำลังซิงค์ข้อมูลล่าสุดจาก Google Sheets...' : '');
+    loadData(persisted.pos, persisted.returns || [], { replace: true, persist: false });
+  } else {
+    usingSample = true;
+    document.getElementById('fileNameLbl').textContent = apiUrl
+      ? 'กำลังโหลดข้อมูลจาก Google Sheets...'
+      : 'ยังไม่ได้อัปโหลด · ลากไฟล์มาวางในกล่องนี้ได้เลย';
+    loadData(SAMPLE_DATA.pos, SAMPLE_DATA.returns, { replace: true, persist: false });
+  }
+
+  if (apiUrl){
+    try {
+      const data = await fetchFromApi();
+      usingSample = false;
+      loadData(data.pos || [], data.returns || [], { replace: true, persist: true });
+      document.getElementById('fileNameLbl').textContent = `เชื่อมต่อ Google Sheets สำเร็จ (${(data.pos||[]).length} PO)`;
+      document.getElementById('apiStatus').textContent = `เชื่อมต่อสำเร็จ ✓ พบข้อมูล ${(data.pos||[]).length} PO บน Google Sheets`;
+    } catch(err){
+      document.getElementById('apiStatus').textContent =
+        'เชื่อมต่อไม่สำเร็จ: ' + err.message + ' · ใช้ข้อมูลที่เก็บไว้ในเบราว์เซอร์นี้แทนไปก่อน';
+    }
+  }
+})();
+</script>
+</body>
+</html>
