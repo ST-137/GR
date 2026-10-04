@@ -205,6 +205,7 @@
   .tab[data-flag="all"] .dot{ background:var(--ink-soft); }
   .tab[data-flag="short"] .dot{ background:var(--warn); }
   .tab[data-flag="over"] .dot{ background:var(--over); }
+  .tab[data-flag="returns"] .dot{ background:var(--alert); }
   .search-group{ display:flex; gap:8px; flex-wrap:wrap; }
   .search-wrap{ position:relative; }
   .search-wrap input{
@@ -415,6 +416,7 @@
       <button class="tab active" data-flag="all"><span class="dot"></span>ทั้งหมด</button>
       <button class="tab" data-flag="short"><span class="dot"></span>รับขาด</button>
       <button class="tab" data-flag="over"><span class="dot"></span>รับเกิน</button>
+      <button class="tab" data-flag="returns"><span class="dot"></span>Return / Claim / Transfer</button>
     </div>
     <div class="search-group">
       <div class="search-wrap">
@@ -432,26 +434,28 @@
     </div>
   </div>
 
-  <p class="count-line" id="countLine"></p>
+  <div id="poViewSection">
+    <p class="count-line" id="countLine"></p>
 
-  <div class="table-scroll">
-    <table class="po-table">
-      <thead>
-        <tr>
-          <th class="col-chev"></th>
-          <th class="num">PO</th>
-          <th class="num">GOR No.</th>
-          <th class="num">รหัส</th>
-          <th>ผู้ขาย</th>
-          <th class="num">วันที่รับ</th>
-          <th class="num">สั่ง</th>
-          <th class="num">รับ</th>
-          <th class="num">ผลต่าง</th>
-          <th>สถานะ</th>
-        </tr>
-      </thead>
-      <tbody id="poList"></tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="po-table">
+        <thead>
+          <tr>
+            <th class="col-chev"></th>
+            <th class="num">PO</th>
+            <th class="num">GOR No.</th>
+            <th class="num">รหัส</th>
+            <th>ผู้ขาย</th>
+            <th class="num">วันที่รับ</th>
+            <th class="num">สั่ง</th>
+            <th class="num">รับ</th>
+            <th class="num">ผลต่าง</th>
+            <th>สถานะ</th>
+          </tr>
+        </thead>
+        <tbody id="poList"></tbody>
+      </table>
+    </div>
   </div>
 
   <div class="returns-section" id="returnsSection" style="display:none;">
@@ -480,7 +484,9 @@ let currentReturns = [];
 // flag, including fully-received ones - it's the default so the table matches the KPI strip
 // (every PO counted there) the moment the page opens. Picking "short" or "over" clears "all",
 // and vice versa, same as a single-select would, but still expressed as a Set so the rest of
-// the filtering code doesn't need two separate code paths.
+// the filtering code doesn't need two separate code paths. "returns" is a second special tab -
+// it doesn't filter the PO table at all, it swaps the whole screen over to the returns/claims
+// table instead (see renderList()/renderReturns()), so picking it clears every other tab too.
 let activeFlags = new Set(['all']);
 // Three separate search terms instead of one combined box - a PO number, supplier code, and
 // item code can all be numeric and happen to collide, so one shared search field could match
@@ -704,6 +710,13 @@ function matchesSearch(po, poTerm, vendorTerm, itemTerm){
 }
 
 function renderList(){
+  // "returns" is a view-mode tab, not a PO flag to filter by - when it's active, the PO
+  // table hides entirely and renderReturns() takes over the screen instead (see there).
+  const isReturnsView = activeFlags.has('returns');
+  document.getElementById('poViewSection').style.display = isReturnsView ? 'none' : '';
+  renderReturns(currentReturns);
+  if (isReturnsView) return;
+
   const listEl = document.getElementById('poList');
   const filtered = currentPOs.filter(po => (activeFlags.has('all') || activeFlags.has(po.flag)) &&
     matchesSearch(po, searchPOTerm, searchVendorTerm, searchItemTerm));
@@ -819,8 +832,19 @@ function escapeHtml(s){
 function renderReturns(returns){
   const section = document.getElementById('returnsSection');
   const body = document.getElementById('returnsBody');
-  if (!returns || !returns.length){ section.style.display = 'none'; return; }
+  // Only ever visible when the "Return / Claim / Transfer" tab is the active view - renderList()
+  // calls this on every render so switching tabs always keeps this in sync, not just uploads.
+  if (!activeFlags.has('returns')){ section.style.display = 'none'; return; }
   section.style.display = '';
+
+  if (!returns || !returns.length){
+    body.innerHTML = `<tr><td colspan="10"><div class="empty-state">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v18M3 12h18"/></svg>
+      <h3>ไม่มีรายการตีคืน / เคลมในช่วงนี้</h3>
+      <div>ลองเปลี่ยนช่วงวันที่ หรืออัปโหลดรายงานที่มีรายการตีคืน</div>
+    </div></td></tr>`;
+    return;
+  }
 
   body.innerHTML = returns.map((r, idx) => {
     // Most claims/returns now carry their item lines (matched from the GORL20 "Claim" block
@@ -957,8 +981,7 @@ function applyFiltersAndRender(){
     });
   renderMeta(currentPOs);
   renderKPI(computeStats(currentPOs));
-  renderList();
-  renderReturns(currentReturns);
+  renderList(); // also refreshes the returns section/tab - see renderList()
   renderRangeInfo();
 }
 
@@ -1050,23 +1073,26 @@ document.getElementById('tabs').addEventListener('click', e => {
   const btn = e.target.closest('.tab');
   if (!btn) return;
   const flag = btn.dataset.flag;
-  const allBtn = document.querySelector('#tabs .tab[data-flag="all"]');
 
-  if (flag === 'all'){
-    if (!activeFlags.has('all')){
+  if (flag === 'all' || flag === 'returns'){
+    if (!activeFlags.has(flag)){
       activeFlags.clear();
-      activeFlags.add('all');
-      document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.flag === 'all'));
+      activeFlags.add(flag);
+      document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.flag === flag));
     }
-    // "all" is already the only active tab - leave it (can't deactivate the last active tab).
+    // already the only active tab - leave it (can't deactivate the last active tab).
   } else if (activeFlags.has(flag)){
     if (activeFlags.size > 1){
       activeFlags.delete(flag);
       btn.classList.remove('active');
     }
   } else {
+    // Switching to a real PO filter (short/over) always leaves the "all"/"returns" views -
+    // both get cleared here even though only one of them can ever be active at a time.
     activeFlags.delete('all');
-    allBtn.classList.remove('active');
+    activeFlags.delete('returns');
+    document.querySelectorAll('#tabs .tab[data-flag="all"], #tabs .tab[data-flag="returns"]')
+      .forEach(b => b.classList.remove('active'));
     activeFlags.add(flag);
     btn.classList.add('active');
   }
