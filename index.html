@@ -194,6 +194,12 @@
     display:flex; align-items:center; justify-content:space-between; gap:14px;
     flex-wrap:wrap; margin-bottom:14px;
   }
+  .sync-status{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px; color:var(--ink-soft); margin:10px 0 4px; min-height:20px; }
+  .sync-status .sdot{ width:8px; height:8px; border-radius:50%; background:var(--ok); flex:0 0 auto; }
+  .sync-status.loading .sdot{ background:var(--warn); animation:syncpulse 1s ease-in-out infinite; }
+  .sync-status.error .sdot{ background:var(--over); }
+  .sync-status button{ font:inherit; font-size:12px; padding:2px 10px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--ink); cursor:pointer; }
+  @keyframes syncpulse{ 0%,100%{opacity:1} 50%{opacity:.25} }
   .tabs{ display:flex; gap:6px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:4px; flex-wrap:wrap; }
   .tab{
     border:none; background:transparent; padding:7px 14px; border-radius:999px; font-size:13.5px;
@@ -398,6 +404,7 @@
 </div>
 
 <div class="wrap">
+  <div class="sync-status" id="syncStatus" role="status" aria-live="polite"></div>
   <div class="kpi-strip" id="kpiStrip"></div>
 
   <div class="daterange-row">
@@ -744,8 +751,11 @@ function renderList(){
     return;
   }
 
-  listEl.innerHTML = filtered.map((po, idx) => {
-    const t = searchItemTerm.toLowerCase();
+  // Item tables are the bulk of the HTML (13+ lines per PO x thousands of POs = tens of MB),
+  // so they're built only when a row is opened (or auto-opened by an item search), not for
+  // every PO up front - this is what keeps first paint fast as accumulated data grows.
+  const t = searchItemTerm.toLowerCase();
+  function buildPoDetail(po){
     const itemRows = po.items.map(it => {
       const itemMatches = t && (
         str(it.d).toLowerCase().includes(t) ||
@@ -763,29 +773,7 @@ function renderList(){
         <td><span class="item-flag" style="color:var(--${it.flag==='match'?'ok':it.flag==='short'?'warn':it.flag==='over'?'over':'alert'})"><span class="dot" style="background:var(--${it.flag==='match'?'ok':it.flag==='short'?'warn':it.flag==='over'?'over':'alert'})"></span>${flagLabel(it.flag)}</span></td>
       </tr>`;
     }).join('');
-
-    const rowId = 'po-' + idx;
-    const supplierDisplay = escapeHtml(po.sname || (po.dc ? 'คลังสินค้า DC (ไม่มีชื่อผู้ขาย)' : '-'));
-    // Only auto-open a row when the item search box has a term - a hit there is always
-    // inside the item list, which isn't visible in the collapsed row, unlike a PO-no. or
-    // vendor match which is already shown right there. (reuses `t` from above)
-    const autoOpen = !!searchItemTerm && itemLevelMatches(po, t);
-
     return `
-    <tr class="po-row${autoOpen ? ' open' : ''}" data-target="${rowId}">
-      <td><svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="9 18 15 12 9 6"/></svg></td>
-      <td class="num">${escapeHtml(po.po||'-')}</td>
-      <td class="num">${escapeHtml(po.gor||'-')}</td>
-      <td class="num supplier-code">${escapeHtml(po.sc||'-')}</td>
-      <td class="col-supplier"><span class="supplier-name">${supplierDisplay}</span>${po.dc ? '<span class="dc-tag">DC</span>' : ''}</td>
-      <td class="num">${escapeHtml(po.rd||'-')}</td>
-      <td class="num">${fmtQty(po.totalO)}</td>
-      <td class="num">${fmtQty(po.totalR)}</td>
-      <td class="num">${po.totalVar>0?'+':''}${fmtQty(po.totalVar)}</td>
-      <td><span class="flag-badge flag-${po.flag}"><span class="dot"></span>${flagLabel(po.flag)}</span></td>
-    </tr>
-    <tr class="po-detail-row${autoOpen ? ' show' : ''}" id="${rowId}">
-      <td colspan="10">
         <div class="po-body">
           <div class="po-detail-meta">
             <span>ประเภท: <b>${escapeHtml(po.type||'-')}</b></span>
@@ -809,8 +797,32 @@ function renderList(){
               </tr>
             </tfoot>
           </table>
-        </div>
-      </td>
+        </div>`;
+  }
+
+  listEl.innerHTML = filtered.map((po, idx) => {
+    const rowId = 'po-' + idx;
+    const supplierDisplay = escapeHtml(po.sname || (po.dc ? 'คลังสินค้า DC (ไม่มีชื่อผู้ขาย)' : '-'));
+    // Only auto-open a row when the item search box has a term - a hit there is always
+    // inside the item list, which isn't visible in the collapsed row, unlike a PO-no. or
+    // vendor match which is already shown right there.
+    const autoOpen = !!searchItemTerm && itemLevelMatches(po, t);
+
+    return `
+    <tr class="po-row${autoOpen ? ' open' : ''}" data-target="${rowId}" data-idx="${idx}">
+      <td><svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="9 18 15 12 9 6"/></svg></td>
+      <td class="num">${escapeHtml(po.po||'-')}</td>
+      <td class="num">${escapeHtml(po.gor||'-')}</td>
+      <td class="num supplier-code">${escapeHtml(po.sc||'-')}</td>
+      <td class="col-supplier"><span class="supplier-name">${supplierDisplay}</span>${po.dc ? '<span class="dc-tag">DC</span>' : ''}</td>
+      <td class="num">${escapeHtml(po.rd||'-')}</td>
+      <td class="num">${fmtQty(po.totalO)}</td>
+      <td class="num">${fmtQty(po.totalR)}</td>
+      <td class="num">${po.totalVar>0?'+':''}${fmtQty(po.totalVar)}</td>
+      <td><span class="flag-badge flag-${po.flag}"><span class="dot"></span>${flagLabel(po.flag)}</span></td>
+    </tr>
+    <tr class="po-detail-row${autoOpen ? ' show' : ''}" id="${rowId}">
+      <td colspan="10" data-filled="${autoOpen ? '1' : ''}">${autoOpen ? buildPoDetail(po) : ''}</td>
     </tr>`;
   }).join('');
 
@@ -818,6 +830,13 @@ function renderList(){
     row.addEventListener('click', () => {
       const detail = document.getElementById(row.dataset.target);
       const willOpen = !detail.classList.contains('show');
+      if (willOpen){
+        const cell = detail.firstElementChild;
+        if (!cell.dataset.filled){
+          cell.innerHTML = buildPoDetail(filtered[+row.dataset.idx]);
+          cell.dataset.filled = '1';
+        }
+      }
       detail.classList.toggle('show', willOpen);
       row.classList.toggle('open', willOpen);
     });
@@ -1509,6 +1528,53 @@ uploadBox.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if 
 // has cached first (or the bundled sample if nothing is cached yet), then fetch the live
 // data in the background and swap it in the moment it arrives - the table never sits empty
 // waiting on the network.
+const SYNCED_AT_KEY = 'gr_synced_at', SYNC_SIG_KEY = 'gr_sync_sig';
+function fmtSyncTime(ms){
+  const d = new Date(ms), p = n => String(n).padStart(2,'0');
+  return `${p(d.getDate())}/${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function setSync(state, text, withRetry){
+  const el = document.getElementById('syncStatus');
+  el.className = 'sync-status ' + state;
+  el.innerHTML = `<span class="sdot"></span><span>${escapeHtml(text)}</span>` +
+    (withRetry ? ' <button type="button" id="syncRetryBtn">ลองใหม่</button>' : '');
+  if (withRetry) document.getElementById('syncRetryBtn').addEventListener('click', refreshFromApi);
+}
+function sigOf(str){ let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0; return str.length + ':' + h; }
+function savedAtText(){
+  let at = null; try { at = +localStorage.getItem(SYNCED_AT_KEY) || null; } catch(e){}
+  return at ? `ข้อมูลในเครื่อง (อัปเดตล่าสุด ${fmtSyncTime(at)})` : 'ข้อมูลที่บันทึกไว้ในเครื่อง';
+}
+
+// Refresh from Google Sheets. The page already shows cached data by this point, so this
+// only swaps the table when the server's copy actually differs (avoids the page "jumping"
+// for nothing), and always tells the viewer what state they're looking at.
+async function refreshFromApi(){
+  if (!apiUrl) return;
+  const hadCache = masterPOsRaw.length > 0;
+  setSync('loading', hadCache
+    ? `${savedAtText()} · กำลังตรวจสอบข้อมูลใหม่ (ครั้งแรกของวันอาจใช้เวลา 5-10 วินาที)...`
+    : 'กำลังโหลดข้อมูลจาก Google Sheets (ครั้งแรกอาจใช้เวลา 5-10 วินาที)...');
+  try {
+    const data = await fetchFromApi();
+    const sig = sigOf(JSON.stringify(data));
+    let oldSig = null; try { oldSig = localStorage.getItem(SYNC_SIG_KEY); } catch(e){}
+    if (sig !== oldSig || !hadCache){
+      usingSample = false;
+      loadData(data.pos || [], data.returns || [], { replace: true, persist: true });
+    }
+    const now = Date.now();
+    try { localStorage.setItem(SYNC_SIG_KEY, sig); localStorage.setItem(SYNCED_AT_KEY, String(now)); } catch(e){}
+    document.getElementById('fileNameLbl').textContent = `เชื่อมต่อ Google Sheets สำเร็จ (${(data.pos||[]).length} PO)`;
+    document.getElementById('apiStatus').textContent = `เชื่อมต่อสำเร็จ ✓ พบข้อมูล ${(data.pos||[]).length} PO บน Google Sheets`;
+    setSync('ok', `ข้อมูลเป็นปัจจุบัน · ตรวจสอบล่าสุด ${fmtSyncTime(now)}`);
+  } catch(err){
+    document.getElementById('apiStatus').textContent =
+      'เชื่อมต่อไม่สำเร็จ: ' + err.message + ' · ใช้ข้อมูลที่เก็บไว้ในเบราว์เซอร์นี้แทนไปก่อน';
+    setSync('error', `เชื่อมต่อไม่สำเร็จ - กำลังแสดง${savedAtText()} อาจไม่ใช่ข้อมูลล่าสุด`, true);
+  }
+}
+
 (async function init(){
   const persisted = loadPersisted();
   if (persisted && persisted.pos && persisted.pos.length){
@@ -1523,19 +1589,7 @@ uploadBox.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if 
       : 'ยังไม่ได้อัปโหลด · ลากไฟล์มาวางในกล่องนี้ได้เลย';
     loadData(SAMPLE_DATA.pos, SAMPLE_DATA.returns, { replace: true, persist: false });
   }
-
-  if (apiUrl){
-    try {
-      const data = await fetchFromApi();
-      usingSample = false;
-      loadData(data.pos || [], data.returns || [], { replace: true, persist: true });
-      document.getElementById('fileNameLbl').textContent = `เชื่อมต่อ Google Sheets สำเร็จ (${(data.pos||[]).length} PO)`;
-      document.getElementById('apiStatus').textContent = `เชื่อมต่อสำเร็จ ✓ พบข้อมูล ${(data.pos||[]).length} PO บน Google Sheets`;
-    } catch(err){
-      document.getElementById('apiStatus').textContent =
-        'เชื่อมต่อไม่สำเร็จ: ' + err.message + ' · ใช้ข้อมูลที่เก็บไว้ในเบราว์เซอร์นี้แทนไปก่อน';
-    }
-  }
+  if (apiUrl) await refreshFromApi();
 })();
 </script>
 </body>
