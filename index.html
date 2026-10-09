@@ -222,6 +222,7 @@
   .dash-bar.sel .bcol{ opacity:1; }
   .dash-bar .bl{ font-size:11px; color:var(--ink-soft); white-space:nowrap; border-top:1px solid var(--line); width:100%; text-align:center; padding-top:4px; }
   .dash-bar.sel .bl{ color:var(--ink); font-weight:600; }
+  .dash-table th.grp, .dash-table td.grp{ border-left:2px solid var(--line); }
   .dash-all-btn{ font:inherit; font-size:13px; padding:7px 14px; border-radius:10px; border:1px solid var(--line); background:var(--surface); color:var(--ink); cursor:pointer; }
   .dash-all-btn.on{ background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
   .dash-table-wrap{ overflow:auto; max-height:72vh; border:1px solid var(--line); border-radius:12px; }
@@ -1219,6 +1220,15 @@ const DASH_EXCLUDE_SC = ['28728', '96131'];
 // the PO's received date. DC (distribution-centre) receipts are left out unless asked for,
 // since the question is "which suppliers came to deliver". A supplier is counted ONCE per
 // week however many days/POs it came on (keyed by supplier code).
+function supKey(po){
+  const nm = str(po.sname).replace(/\s+/g, ' ').trim().toLowerCase();
+  return nm || ('code:' + str(po.sc).trim() || '-');
+}
+function codesText(codes){
+  const a = [...codes];
+  if (!a.length) return 'รหัส -';
+  return a.length <= 2 ? 'รหัส ' + a.join(', ') : `รหัส ${a[0]}, ${a[1]} +${a.length - 2}`;
+}
 function buildWeeks(){
   const weeks = new Map();
   enrich(masterPOsRaw).filter(po => po._rd && (dashIncludeDC || !po.dc) &&
@@ -1229,10 +1239,13 @@ function buildWeeks(){
     w.pos++;
     const di = (po._rd.getDay() + 6) % 7;
     w.days.add(di); w.dates.add(toInputDate(po._rd));
-    const sk = po.sc || po.sname || '-';
+    // One row per supplier NAME: the same company often has several supplier codes (e.g.
+    // one per product line), which would otherwise show as many identical-looking rows.
+    const sk = supKey(po);
     let s = w.sup.get(sk);
-    if (!s){ s = { sc: po.sc, sname: po.sname, days: [0,0,0,0,0,0,0], n: 0 }; w.sup.set(sk, s); }
+    if (!s){ s = { sname: po.sname, codes: new Set(), days: [0,0,0,0,0,0,0], n: 0 }; w.sup.set(sk, s); }
     if (!s.sname && po.sname) s.sname = po.sname;
+    if (po.sc) s.codes.add(str(po.sc).trim());
     s.days[di]++; s.n++;
   });
   return [...weeks.values()].sort((a, b) => a.start - b.start);
@@ -1258,7 +1271,7 @@ function renderDashboard(){
       `<option value="${w.key}"${w.key === dashWeekKey ? ' selected' : ''}>${weekLabel(w.start)} (${w.sup.size} ซัพ)</option>`).join('');
 
   const term = dashSearchTerm.toLowerCase();
-  const matchTerm = s => !term || str(s.sc).toLowerCase().includes(term) || str(s.sname).toLowerCase().includes(term);
+  const matchTerm = s => !term || [...s.codes].some(c => c.toLowerCase().includes(term)) || str(s.sname).toLowerCase().includes(term);
 
   // chart: distinct suppliers per week (each supplier once per week)
   const shown = weeks.slice(-12);
@@ -1278,8 +1291,10 @@ function renderDashboard(){
       totalPos += w.pos; w.dates.forEach(d => dates.add(d));
       w.sup.forEach((s, k) => {
         let a = agg.get(k);
-        if (!a){ a = { sc: s.sc, sname: s.sname, perWeek: {}, n: 0, weeks: 0 }; agg.set(k, a); }
+        if (!a) agg.set(k, a = { sname: s.sname, codes: new Set(), days: [0,0,0,0,0,0,0], perWeek: {}, n: 0, weeks: 0 });
         if (!a.sname && s.sname) a.sname = s.sname;
+        s.codes.forEach(c => a.codes.add(c));
+        s.days.forEach((c, i) => { a.days[i] += c; });
         a.perWeek[w.key] = s.n; a.n += s.n; a.weeks++;
       });
     });
@@ -1291,19 +1306,22 @@ function renderDashboard(){
       <div class="dash-kpi"><b>${dates.size}</b><span>วันที่มีการรับของ</span></div>
       <div class="dash-kpi"><b>${weeks.length}</b><span>จำนวนสัปดาห์</span></div>`;
     document.getElementById('dashTableTitle').textContent =
-      `ทั้งหมด ${weeks.length} สัปดาห์ · ${rows.length} ซัพพลายเออร์` + (term ? ' (ตามที่ค้นหา)' : '');
-    const head = weeks.map(w => `<th>${fmtDM(w.start)}<small>–${fmtDM(new Date(w.start.getFullYear(), w.start.getMonth(), w.start.getDate() + 6))}</small></th>`).join('');
-    const tot = {}; weeks.forEach(w => tot[w.key] = 0); let totN = 0;
+      `ทั้งหมด ${weeks.length} สัปดาห์ · ${rows.length} ซัพพลายเออร์` + (term ? ' (ตามที่ค้นหา)' : '') +
+      ' · ตัวเลขวันจันทร์–อาทิตย์ = จำนวน PO รวมทุกสัปดาห์';
+    const wkHead = weeks.map((w, i) => `<th${i === 0 ? ' class="grp"' : ''}>${fmtDM(w.start)}<small>–${fmtDM(new Date(w.start.getFullYear(), w.start.getMonth(), w.start.getDate() + 6))}</small></th>`).join('');
+    const dayTot = [0,0,0,0,0,0,0], wkTot = {}; weeks.forEach(w => wkTot[w.key] = 0); let totN = 0;
+    const cell = c => c ? `<span class="dash-day">${c}</span>` : '<span class="dash-none">·</span>';
     const body = rows.map(s => {
-      weeks.forEach(w => { tot[w.key] += s.perWeek[w.key] || 0; }); totN += s.n;
+      s.days.forEach((c, i) => { dayTot[i] += c; }); weeks.forEach(w => { wkTot[w.key] += s.perWeek[w.key] || 0; }); totN += s.n;
       return `<tr>
-        <td class="sup"><div>${escapeHtml(s.sname || '-')}</div><div class="scode">รหัส ${escapeHtml(s.sc || '-')}</div></td>
-        ${weeks.map(w => `<td>${s.perWeek[w.key] ? `<span class="dash-day">${s.perWeek[w.key]}</span>` : '<span class="dash-none">·</span>'}</td>`).join('')}
-        <td><b>${s.weeks}</b></td><td><b>${s.n}</b></td></tr>`;
+        <td class="sup"><div>${escapeHtml(s.sname || '-')}</div><div class="scode" title="${escapeHtml([...s.codes].join(', '))}">${escapeHtml(codesText(s.codes))}</div></td>
+        ${s.days.map(c => `<td>${cell(c)}</td>`).join('')}
+        <td><b>${s.weeks}</b></td><td><b>${s.n}</b></td>
+        ${weeks.map((w, i) => `<td${i === 0 ? ' class="grp"' : ''}>${cell(s.perWeek[w.key])}</td>`).join('')}</tr>`;
     }).join('');
-    table.innerHTML = `<thead><tr><th class="sup">ซัพพลายเออร์</th>${head}<th>มากี่สัปดาห์</th><th>รวม PO</th></tr></thead>
+    table.innerHTML = `<thead><tr><th class="sup">ซัพพลายเออร์</th>${TH_DAYS.map(n => `<th>${n}</th>`).join('')}<th>มากี่สัปดาห์</th><th>รวม PO</th>${wkHead}</tr></thead>
       <tbody>${body || '<tr><td colspan="99">ไม่พบซัพพลายเออร์ที่ตรงกับคำค้นหา</td></tr>'}</tbody>
-      ${rows.length ? `<tfoot><tr><td class="sup">รวม</td>${weeks.map(w => `<td>${tot[w.key] || ''}</td>`).join('')}<td></td><td>${totN}</td></tr></tfoot>` : ''}`;
+      ${rows.length ? `<tfoot><tr><td class="sup">รวม</td>${dayTot.map(c => `<td>${c || ''}</td>`).join('')}<td></td><td>${totN}</td>${weeks.map((w, i) => `<td${i === 0 ? ' class="grp"' : ''}>${wkTot[w.key] || ''}</td>`).join('')}</tr></tfoot>` : ''}`;
     return;
   }
 
@@ -1324,7 +1342,7 @@ function renderDashboard(){
   const body = rows.map(s => {
     s.days.forEach((c, i) => { tot[i] += c; }); totN += s.n;
     return `<tr>
-      <td class="sup"><div>${escapeHtml(s.sname || '-')}</div><div class="scode">รหัส ${escapeHtml(s.sc || '-')}</div></td>
+      <td class="sup"><div>${escapeHtml(s.sname || '-')}</div><div class="scode" title="${escapeHtml([...s.codes].join(', '))}">${escapeHtml(codesText(s.codes))}</div></td>
       ${s.days.map(c => `<td>${c ? `<span class="dash-day">${c}</span>` : '<span class="dash-none">·</span>'}</td>`).join('')}
       <td><b>${s.n}</b></td></tr>`;
   }).join('');
