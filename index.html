@@ -200,6 +200,39 @@
   .sync-status.error .sdot{ background:var(--over); }
   .sync-status button{ font:inherit; font-size:12px; padding:2px 10px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--ink); cursor:pointer; }
   @keyframes syncpulse{ 0%,100%{opacity:1} 50%{opacity:.25} }
+  .dash-toggle-btn{ width:100%; font:inherit; font-size:14px; font-weight:600; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,0.25); background:var(--accent); color:#fff; cursor:pointer; }
+  .dash-toggle-btn:hover{ filter:brightness(1.08); }
+  .dash-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:18px 0 12px; }
+  .dash-head h2{ margin:0; font-size:20px; }
+  .dash-controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .dash-field{ font-size:13px; color:var(--ink-soft); display:flex; align-items:center; gap:6px; }
+  .dash-field select{ font:inherit; padding:7px 10px; border-radius:10px; border:1px solid var(--line); background:var(--surface); color:var(--ink); max-width:100%; }
+  .dash-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
+  .dash-kpi{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px 14px; }
+  .dash-kpi b{ display:block; font-size:26px; line-height:1.2; color:var(--ink); }
+  .dash-kpi span{ font-size:12.5px; color:var(--ink-soft); }
+  .dash-card{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 14px 10px; margin-bottom:14px; }
+  .dash-card-title{ font-weight:600; font-size:14.5px; margin-bottom:10px; color:var(--ink); }
+  .dash-note{ font-weight:400; font-size:12px; color:var(--ink-soft); }
+  .dash-chart{ display:flex; align-items:flex-end; gap:8px; height:190px; overflow-x:auto; padding-bottom:2px; }
+  .dash-bar{ flex:1 0 44px; max-width:90px; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; background:none; border:0; padding:0; cursor:pointer; font:inherit; color:var(--ink); }
+  .dash-bar .bv{ font-size:12px; font-weight:600; }
+  .dash-bar .bcol{ width:100%; border-radius:4px 4px 0 0; background:var(--accent); opacity:.4; transition:opacity .12s, height .2s; }
+  .dash-bar:hover .bcol{ opacity:.7; }
+  .dash-bar.sel .bcol{ opacity:1; }
+  .dash-bar .bl{ font-size:11px; color:var(--ink-soft); white-space:nowrap; border-top:1px solid var(--line); width:100%; text-align:center; padding-top:4px; }
+  .dash-bar.sel .bl{ color:var(--ink); font-weight:600; }
+  .dash-table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  .dash-table th{ text-align:center; font-weight:600; font-size:12px; color:var(--ink-soft); padding:6px 6px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  .dash-table th small{ display:block; font-weight:400; }
+  .dash-table td{ padding:7px 6px; border-bottom:1px solid var(--line); text-align:center; }
+  .dash-table td.sup, .dash-table th.sup{ text-align:left; min-width:190px; }
+  .dash-table .scode{ color:var(--ink-soft); font-size:12px; }
+  .dash-day{ display:inline-block; min-width:26px; padding:2px 6px; border-radius:999px; background:var(--accent-soft); color:var(--accent-ink); font-weight:600; }
+  .dash-none{ color:var(--line); }
+  .dash-table tfoot td{ font-weight:600; border-bottom:0; }
+  .dash-st{ display:inline-flex; gap:4px; flex-wrap:wrap; justify-content:center; }
+  @media (max-width:640px){ .dash-table td.sup, .dash-table th.sup{ min-width:140px; position:sticky; left:0; background:var(--surface); z-index:1; } .dash-controls{ width:100%; } .dash-controls .dash-search{ flex:1 1 100%; } }
   .tabs{ display:flex; gap:6px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:4px; flex-wrap:wrap; }
   .tab{
     border:none; background:transparent; padding:7px 14px; border-radius:999px; font-size:13.5px;
@@ -370,6 +403,7 @@
             <span class="upload-success-badge" id="uploadSuccessBadge" style="display:none">✓ อัปโหลดล่าสุดสำเร็จ</span>
           </button>
         </div>
+        <button class="dash-toggle-btn" id="dashToggleBtn" type="button">📊 Dashboard ซัพพลายเออร์รายสัปดาห์</button>
         <div class="upload-box" id="uploadBox">
           <div class="upload-title">อัปโหลดไฟล์รายงานวันนี้</div>
           <div class="upload-hint">รองรับไฟล์ GORL 20 (.xlsx) ที่ export จากระบบทุกวัน · เลือกไฟล์ก่อน แล้วกด "อัปโหลด" อีกครั้งเพื่อยืนยัน</div>
@@ -405,6 +439,7 @@
 
 <div class="wrap">
   <div class="sync-status" id="syncStatus" role="status" aria-live="polite"></div>
+  <div id="mainView">
   <div class="kpi-strip" id="kpiStrip"></div>
 
   <div class="daterange-row">
@@ -474,6 +509,30 @@
         </thead>
         <tbody id="returnsBody"></tbody>
       </table>
+    </div>
+  </div>
+  </div><!-- /mainView -->
+
+  <div id="dashView" style="display:none;">
+    <div class="dash-head">
+      <h2>ซัพพลายเออร์ที่เข้าส่งของรายสัปดาห์</h2>
+      <div class="dash-controls">
+        <label class="dash-field">สัปดาห์ <select id="dashWeekSel"></select></label>
+        <label class="dash-field dash-check"><input type="checkbox" id="dashDC"> รวมคลัง DC</label>
+        <div class="search-wrap dash-search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="dashSearch" placeholder="ค้นหาซัพพลายเออร์ (รหัส/ชื่อ)">
+        </div>
+      </div>
+    </div>
+    <div class="dash-kpis" id="dashKpis"></div>
+    <div class="dash-card">
+      <div class="dash-card-title">จำนวนซัพพลายเออร์ที่เข้าส่งของ แยกตามสัปดาห์ <span class="dash-note">(กดที่แท่งเพื่อดูรายชื่อ)</span></div>
+      <div class="dash-chart" id="dashChart"></div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title" id="dashTableTitle"></div>
+      <div class="table-scroll"><table class="dash-table" id="dashTable"></table></div>
     </div>
   </div>
 </div>
@@ -1001,6 +1060,7 @@ function applyFiltersAndRender(){
   renderMeta(currentPOs);
   renderKPI(computeStats(currentPOs));
   renderList(); // also refreshes the returns section/tab - see renderList()
+  if (dashOpen) renderDashboard();
   renderRangeInfo();
 }
 
@@ -1128,6 +1188,124 @@ document.getElementById('searchVendor').addEventListener('input', e => {
 document.getElementById('searchItem').addEventListener('input', e => {
   searchItemTerm = e.target.value.trim();
   renderList();
+});
+
+
+/* ---------- Dashboard: which suppliers delivered, week by week ---------- */
+let dashOpen = false, dashWeekKey = null, dashIncludeDC = false, dashSearchTerm = '';
+const TH_DAYS = ['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.'];
+function weekStartOf(d){
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); // Monday
+  return x;
+}
+function fmtDM(d){ return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0'); }
+function weekLabel(start){
+  const end = new Date(start); end.setDate(end.getDate() + 6);
+  return `${fmtDM(start)} – ${fmtDM(end)}/${end.getFullYear()}`;
+}
+// Uses ALL accumulated data (not the page's date-range filter), grouped Monday-Sunday by
+// the PO's received date. DC (distribution-centre) receipts are left out unless asked for,
+// since the question is "which suppliers came to deliver".
+function buildWeeks(){
+  const weeks = new Map();
+  enrich(masterPOsRaw).filter(po => po._rd && (dashIncludeDC || !po.dc)).forEach(po => {
+    const ws = weekStartOf(po._rd), key = toInputDate(ws);
+    let w = weeks.get(key);
+    if (!w){ w = { key, start: ws, pos: 0, days: new Set(), sup: new Map() }; weeks.set(key, w); }
+    w.pos++;
+    const di = (po._rd.getDay() + 6) % 7;
+    w.days.add(di);
+    const sk = po.sc || po.sname || '-';
+    let s = w.sup.get(sk);
+    if (!s){ s = { sc: po.sc, sname: po.sname, days: [0,0,0,0,0,0,0], n: 0, short: 0, over: 0, ok: 0 }; w.sup.set(sk, s); }
+    if (!s.sname && po.sname) s.sname = po.sname;
+    s.days[di]++; s.n++;
+    if (po.flag === 'short') s.short++; else if (po.flag === 'over' || po.flag === 'noorder') s.over++; else s.ok++;
+  });
+  return [...weeks.values()].sort((a, b) => a.start - b.start);
+}
+function renderDashboard(){
+  const weeks = buildWeeks();
+  const sel = document.getElementById('dashWeekSel');
+  const chartEl = document.getElementById('dashChart');
+  const kpiEl = document.getElementById('dashKpis');
+  const table = document.getElementById('dashTable');
+  if (!weeks.length){
+    sel.innerHTML = '';
+    kpiEl.innerHTML = '';
+    chartEl.innerHTML = '';
+    document.getElementById('dashTableTitle').textContent = '';
+    table.innerHTML = '<tbody><tr><td><div class="empty-state"><h3>ยังไม่มีข้อมูลสำหรับ Dashboard</h3><div>อัปโหลดรายงานก่อน แล้วระบบจะสรุปรายสัปดาห์ให้</div></div></td></tr></tbody>';
+    return;
+  }
+  if (!weeks.some(w => w.key === dashWeekKey)) dashWeekKey = weeks[weeks.length - 1].key;
+  const cur = weeks.find(w => w.key === dashWeekKey);
+
+  sel.innerHTML = weeks.slice().reverse().map(w =>
+    `<option value="${w.key}"${w.key === dashWeekKey ? ' selected' : ''}>${weekLabel(w.start)} (${w.sup.size} ซัพ)</option>`).join('');
+
+  const term = dashSearchTerm.toLowerCase();
+  const rows = [...cur.sup.values()]
+    .filter(s => !term || str(s.sc).toLowerCase().includes(term) || str(s.sname).toLowerCase().includes(term))
+    .sort((a, b) => b.n - a.n || str(a.sname).localeCompare(str(b.sname), 'th'));
+  const issueSup = [...cur.sup.values()].filter(s => s.short || s.over).length;
+  kpiEl.innerHTML = `
+    <div class="dash-kpi"><b>${cur.sup.size}</b><span>ซัพพลายเออร์ที่เข้าส่งของ</span></div>
+    <div class="dash-kpi"><b>${cur.pos}</b><span>ใบสั่งซื้อที่รับ</span></div>
+    <div class="dash-kpi"><b>${cur.days.size}</b><span>วันที่มีการรับของ</span></div>
+    <div class="dash-kpi"><b>${issueSup}</b><span>ซัพที่มีรับขาด/รับเกิน</span></div>`;
+
+  const shown = weeks.slice(-12);
+  const max = Math.max(...shown.map(w => w.sup.size), 1);
+  chartEl.innerHTML = shown.map(w => `
+    <button type="button" class="dash-bar${w.key === dashWeekKey ? ' sel' : ''}" data-week="${w.key}" aria-pressed="${w.key === dashWeekKey}"
+      title="สัปดาห์ ${weekLabel(w.start)}: ${w.sup.size} ซัพพลายเออร์ · ${w.pos} ใบสั่งซื้อ">
+      <span class="bv">${w.sup.size}</span>
+      <span class="bcol" style="height:${Math.max(4, Math.round(w.sup.size / max * 130))}px"></span>
+      <span class="bl">${fmtDM(w.start)}</span>
+    </button>`).join('');
+
+  document.getElementById('dashTableTitle').textContent =
+    `สัปดาห์ ${weekLabel(cur.start)} · ${rows.length} ซัพพลายเออร์` + (term ? ' (ตามที่ค้นหา)' : '');
+  const dayHead = TH_DAYS.map((n, i) => {
+    const d = new Date(cur.start); d.setDate(d.getDate() + i);
+    return `<th>${n}<small>${String(d.getDate()).padStart(2,'0')}</small></th>`;
+  }).join('');
+  const tot = [0,0,0,0,0,0,0]; let totN = 0;
+  const body = rows.map(s => {
+    s.days.forEach((c, i) => { tot[i] += c; }); totN += s.n;
+    const st = [
+      s.short ? `<span class="flag-badge flag-short"><span class="dot"></span>${flagLabel('short')} ${s.short}</span>` : '',
+      s.over ? `<span class="flag-badge flag-over"><span class="dot"></span>${flagLabel('over')} ${s.over}</span>` : '',
+      s.ok ? `<span class="flag-badge flag-match"><span class="dot"></span>${flagLabel('match')} ${s.ok}</span>` : ''
+    ].join('');
+    return `<tr>
+      <td class="sup"><div>${escapeHtml(s.sname || '-')}</div><div class="scode">รหัส ${escapeHtml(s.sc || '-')}</div></td>
+      ${s.days.map(c => `<td>${c ? `<span class="dash-day">${c}</span>` : '<span class="dash-none">·</span>'}</td>`).join('')}
+      <td><b>${s.n}</b></td>
+      <td><span class="dash-st">${st}</span></td>
+    </tr>`;
+  }).join('');
+  table.innerHTML = `<thead><tr><th class="sup">ซัพพลายเออร์</th>${dayHead}<th>รวม PO</th><th>สถานะ</th></tr></thead>
+    <tbody>${body || '<tr><td colspan="10">ไม่พบซัพพลายเออร์ที่ตรงกับคำค้นหา</td></tr>'}</tbody>
+    ${rows.length ? `<tfoot><tr><td class="sup">รวม</td>${tot.map(c => `<td>${c || ''}</td>`).join('')}<td>${totN}</td><td></td></tr></tfoot>` : ''}`;
+}
+function setDashOpen(open){
+  dashOpen = open;
+  document.getElementById('mainView').style.display = open ? 'none' : '';
+  document.getElementById('dashView').style.display = open ? '' : 'none';
+  document.getElementById('dashToggleBtn').textContent = open ? '← กลับหน้าตรวจรับสินค้า' : '📊 Dashboard ซัพพลายเออร์รายสัปดาห์';
+  if (open) renderDashboard();
+  window.scrollTo(0, 0);
+}
+document.getElementById('dashToggleBtn').addEventListener('click', () => setDashOpen(!dashOpen));
+document.getElementById('dashWeekSel').addEventListener('change', e => { dashWeekKey = e.target.value; renderDashboard(); });
+document.getElementById('dashDC').addEventListener('change', e => { dashIncludeDC = e.target.checked; renderDashboard(); });
+document.getElementById('dashSearch').addEventListener('input', e => { dashSearchTerm = e.target.value.trim(); renderDashboard(); });
+document.getElementById('dashChart').addEventListener('click', e => {
+  const b = e.target.closest('.dash-bar');
+  if (b){ dashWeekKey = b.dataset.week; renderDashboard(); }
 });
 
 /* ---------- Light/dark theme toggle ----------
