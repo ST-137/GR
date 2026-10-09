@@ -1221,7 +1221,10 @@ const DASH_EXCLUDE_SC = ['28728', '96131'];
 // since the question is "which suppliers came to deliver". A supplier is counted ONCE per
 // week however many days/POs it came on (keyed by supplier code).
 function supKey(po){
-  const nm = str(po.sname).replace(/\s+/g, ' ').trim().toLowerCase();
+  // Compare names ignoring spaces (incl. non-breaking/zero-width), dots, brackets and case,
+  // so "บมจ.ซีพีเอฟ โกลบอล ฟู้ด โซลูชั่น" typed with stray spaces still merges into one row.
+  const nm = str(po.sname).normalize('NFC')
+    .replace(/[\s\u00a0\u200b-\u200d\ufeff.()\[\]\-_,]/g, '').toLowerCase();
   return nm || ('code:' + str(po.sc).trim() || '-');
 }
 function codesText(codes){
@@ -1307,21 +1310,19 @@ function renderDashboard(){
       <div class="dash-kpi"><b>${weeks.length}</b><span>จำนวนสัปดาห์</span></div>`;
     document.getElementById('dashTableTitle').textContent =
       `ทั้งหมด ${weeks.length} สัปดาห์ · ${rows.length} ซัพพลายเออร์` + (term ? ' (ตามที่ค้นหา)' : '') +
-      ' · ตัวเลขวันจันทร์–อาทิตย์ = จำนวน PO รวมทุกสัปดาห์';
-    const wkHead = weeks.map((w, i) => `<th${i === 0 ? ' class="grp"' : ''}>${fmtDM(w.start)}<small>–${fmtDM(new Date(w.start.getFullYear(), w.start.getMonth(), w.start.getDate() + 6))}</small></th>`).join('');
-    const dayTot = [0,0,0,0,0,0,0], wkTot = {}; weeks.forEach(w => wkTot[w.key] = 0); let totN = 0;
+      ' · ตัวเลขแต่ละวัน = จำนวน PO ที่รับ รวมทุกสัปดาห์';
+    const dayTot = [0,0,0,0,0,0,0]; let totN = 0;
     const cell = c => c ? `<span class="dash-day">${c}</span>` : '<span class="dash-none">·</span>';
     const body = rows.map(s => {
-      s.days.forEach((c, i) => { dayTot[i] += c; }); weeks.forEach(w => { wkTot[w.key] += s.perWeek[w.key] || 0; }); totN += s.n;
+      s.days.forEach((c, i) => { dayTot[i] += c; }); totN += s.n;
       return `<tr>
         <td class="sup"><div>${escapeHtml(s.sname || '-')}</div><div class="scode" title="${escapeHtml([...s.codes].join(', '))}">${escapeHtml(codesText(s.codes))}</div></td>
         ${s.days.map(c => `<td>${cell(c)}</td>`).join('')}
-        <td><b>${s.weeks}</b></td><td><b>${s.n}</b></td>
-        ${weeks.map((w, i) => `<td${i === 0 ? ' class="grp"' : ''}>${cell(s.perWeek[w.key])}</td>`).join('')}</tr>`;
+        <td><b>${s.n}</b></td></tr>`;
     }).join('');
-    table.innerHTML = `<thead><tr><th class="sup">ซัพพลายเออร์</th>${TH_DAYS.map(n => `<th>${n}</th>`).join('')}<th>มากี่สัปดาห์</th><th>รวม PO</th>${wkHead}</tr></thead>
-      <tbody>${body || '<tr><td colspan="99">ไม่พบซัพพลายเออร์ที่ตรงกับคำค้นหา</td></tr>'}</tbody>
-      ${rows.length ? `<tfoot><tr><td class="sup">รวม</td>${dayTot.map(c => `<td>${c || ''}</td>`).join('')}<td></td><td>${totN}</td>${weeks.map((w, i) => `<td${i === 0 ? ' class="grp"' : ''}>${wkTot[w.key] || ''}</td>`).join('')}</tr></tfoot>` : ''}`;
+    table.innerHTML = `<thead><tr><th class="sup">ซัพพลายเออร์</th>${TH_DAYS.map(n => `<th>${n}</th>`).join('')}<th>รวม PO</th></tr></thead>
+      <tbody>${body || '<tr><td colspan="9">ไม่พบซัพพลายเออร์ที่ตรงกับคำค้นหา</td></tr>'}</tbody>
+      ${rows.length ? `<tfoot><tr><td class="sup">รวม</td>${dayTot.map(c => `<td>${c || ''}</td>`).join('')}<td>${totN}</td></tr></tfoot>` : ''}`;
     return;
   }
 
