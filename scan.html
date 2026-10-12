@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>สแกนบาร์โค้ด</title>
+<style>
+  :root { --green:#06C755; --dark:#0F1A14; --muted:#8C8C8C; --red:#E53935; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: var(--dark); color: #fff;
+    font-family: -apple-system, "Segoe UI", "Noto Sans Thai", "Sarabun", sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { padding: 16px 16px 10px; }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header p { font-size: 13px; color: #B9C7BF; margin-top: 4px; }
+  #cam { position: relative; flex: 1; min-height: 300px; background: #000; overflow: hidden; }
+  #reader { position: absolute; inset: 0; }
+  #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+  #frame { position: absolute; left: 50%; top: 50%; width: 78%; max-width: 340px; aspect-ratio: 2 / 1;
+    transform: translate(-50%, -50%); border: 3px solid var(--green); border-radius: 14px;
+    box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); pointer-events: none; }
+  #frame::after { content: ""; position: absolute; left: 6%; right: 6%; top: 50%; height: 2px;
+    background: var(--red); opacity: .85; animation: scan 1.6s ease-in-out infinite; }
+  @keyframes scan { 0%,100% { transform: translateY(-34px); } 50% { transform: translateY(34px); } }
+  #status { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font-size: 14px;
+    text-shadow: 0 1px 3px #000; padding: 0 16px; }
+  footer { padding: 12px 16px 18px; background: #16241C; }
+  footer label { font-size: 13px; color: #B9C7BF; }
+  .row { display: flex; gap: 8px; margin-top: 6px; }
+  input { flex: 1; min-width: 0; font-size: 18px; padding: 12px; border-radius: 10px; border: 0;
+    background: #fff; color: #111; }
+  button { font-size: 16px; font-weight: 600; padding: 12px 16px; border-radius: 10px; border: 0;
+    background: var(--green); color: #fff; }
+  button:disabled { opacity: .5; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  #done { display: none; position: fixed; inset: 0; background: var(--dark); align-items: center;
+    justify-content: center; flex-direction: column; gap: 10px; text-align: center; padding: 24px; }
+  #done b { font-size: 28px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>📷 สแกนบาร์โค้ดสินค้า</h1>
+    <p>เล็งบาร์โค้ดให้อยู่ในกรอบสีเขียว ระบบจะค้นหาให้อัตโนมัติ</p>
+  </header>
+
+  <div id="cam"><div id="reader"></div><div id="frame"></div><div id="status">กำลังเปิดกล้อง…</div></div>
+
+  <footer>
+    <label for="code">สแกนไม่ติด? พิมพ์รหัสสินค้า หรือเลขบาร์โค้ดเอง</label>
+    <div class="row">
+      <input id="code" inputmode="numeric" placeholder="เช่น 75608 หรือ 28181781" autocomplete="off">
+      <button id="go">ค้นหา</button>
+    </div>
+    <div class="hint" id="hint"></div>
+  </footer>
+
+  <div id="done"><div>กำลังค้นหา</div><b id="doneCode"></b><div class="hint">ปิดหน้านี้แล้วดูผลในแชท</div></div>
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    // ===== ตั้งค่า =====
+    const LIFF_ID = '2011981240-JqXiGqsd';   // ได้จาก LINE Developers → LINE Login channel → LIFF
+    const OA_ID   = '@749swpsv';           // LINE ID ของบอท (ใช้สำรองเมื่อเปิดนอกไลน์)
+    const PREFIX  = '@@';
+    // ===================
+
+    const $ = (id) => document.getElementById(id);
+    const status = (t) => { $('status').textContent = t; };
+    let scanner = null, sent = false, liffReady = false;
+
+    async function send(raw) {
+      const code = String(raw || '').replace(/\D/g, '');
+      if (!code || sent) return;
+      sent = true;
+      if (navigator.vibrate) navigator.vibrate(80);
+      try { if (scanner) await scanner.stop(); } catch (e) {}
+      $('doneCode').textContent = code;
+      $('done').style.display = 'flex';
+
+      const text = PREFIX + code;
+      if (liffReady && liff.isInClient()) {
+        try {
+          await liff.sendMessages([{ type: 'text', text }]);
+          liff.closeWindow();
+          return;
+        } catch (e) {
+          // ส่งไม่ได้ (เช่น เปิดจากที่ที่ไม่ใช่แชท) → ใช้วิธีสำรองด้านล่าง
+        }
+      }
+      // สำรอง: เปิดแชทบอทพร้อมข้อความ ให้กดส่งเอง
+      location.href = 'https://line.me/R/oaMessage/' + encodeURIComponent(OA_ID) + '/?' + encodeURIComponent(text);
+    }
+
+    $('go').onclick = () => send($('code').value);
+    $('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') send($('code').value); });
+
+    async function startCamera() {
+      const F = Html5QrcodeSupportedFormats;
+      scanner = new Html5Qrcode('reader', {
+        formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF],
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        verbose: false,
+      });
+      try {
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 12 },  // อ่านทั้งภาพ กรอบสีเขียวเป็นแค่ตัวช่วยเล็ง
+          (text) => send(text),
+          () => {}
+        );
+        status('เล็งบาร์โค้ดให้อยู่ในกรอบ');
+      } catch (e) {
+        status('เปิดกล้องไม่ได้ — กดอนุญาตใช้กล้อง หรือพิมพ์รหัสด้านล่างแทน');
+        $('hint').textContent = String(e && e.message || e).slice(0, 120);
+      }
+    }
+
+    (async () => {
+      if (LIFF_ID && LIFF_ID.indexOf('ใส่_') !== 0) {
+        try { await liff.init({ liffId: LIFF_ID }); liffReady = true; } catch (e) {
+          $('hint').textContent = 'LIFF: ' + (e && e.message || e);
+        }
+      }
+      startCamera();
+    })();
+  </script>
+</body>
+</html>
