@@ -70,9 +70,11 @@
     const status = (t) => { $('status').textContent = t; };
     let scanner = null, sent = false, liffReady = false;
 
+    // ส่งเลขที่สแกนได้ตามจริง — บอทจะแปลงเป็นรหัส Item เอง (เช็กตารางบาร์โค้ดก่อน แล้วค่อยใช้สูตรตัดเลข)
     async function send(raw) {
-      const code = String(raw || '').replace(/\D/g, '');
-      if (!code || sent) return;
+      const scanned = String(raw || '').replace(/\D/g, '');
+      if (!scanned || sent) return;
+      const code = scanned;
       sent = true;
       if (navigator.vibrate) navigator.vibrate(80);
       try { if (scanner) await scanner.stop(); } catch (e) {}
