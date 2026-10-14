@@ -11,7 +11,7 @@
           --bg:#F3F6F4; --card:#fff; --red:#E53935; }
   * { box-sizing: border-box; margin: 0; }
   html, body { background: var(--bg); color: var(--ink); font-family: "Sarabun", system-ui, sans-serif; }
-  body { padding-bottom: 96px; }
+  body { padding-bottom: 170px; }
 
   /* ---------- ส่วนหัว + กระดาษจำลองมุมขวาบน ---------- */
   header { background: var(--green); color: #fff; padding: 14px 152px 16px 16px; min-height: 214px; }
@@ -71,7 +71,12 @@
   .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 
   #bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: #fff;
-         padding: 10px 16px 14px; box-shadow: 0 -2px 10px rgba(0,0,0,.08); display: flex; gap: 10px; align-items: center; }
+         padding: 10px 16px 14px; box-shadow: 0 -2px 10px rgba(0,0,0,.08); }
+  #bar .lbl { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  #dest { margin-bottom: 10px; }
+  #dest button { font-size: 15px; font-weight: 800; }
+  #dest button.on { background: var(--green); color: #fff; }
+  #bar .act { display: flex; gap: 10px; align-items: center; }
   #bar .info { flex: 1; font-size: 13px; color: var(--muted); }
   #bar .info b { color: var(--ink); font-size: 15px; }
   #bar button { padding: 13px 22px; font-size: 16px; }
@@ -178,8 +183,17 @@
   </main>
 
   <div id="bar">
-    <div class="info"><b id="sumItems">0 รายการ</b><br>A3 · Fuji (คอม GR)</div>
-    <button id="print" disabled>🖨️ สั่งปริ้น</button>
+    <div class="lbl">ปริ้นไปที่</div>
+    <div class="seg" id="dest">
+      <button data-v="ALC">ALC</button>
+      <button data-v="GR">GR</button>
+      <button data-v="FRESH">FRESH</button>
+      <button data-v="RC">RC</button>
+    </div>
+    <div class="act">
+      <div class="info"><b id="sumItems">0 รายการ</b><br>A3 · <span id="destName">ยังไม่เลือกที่ปริ้น</span></div>
+      <button id="print" disabled>🖨️ สั่งปริ้น</button>
+    </div>
   </div>
 
   <div id="find">
@@ -235,6 +249,8 @@
     const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     let items = [], sigMode = 'blank', me = 'ทดลอง', uid = '', scanner = null, busy = false, lastScan = '', lastAt = 0;
     let DB = null;          // ข้อมูลสินค้าในมือถือ { items: Map(item→ชื่อ), bc: Map(บาร์โค้ด→item), w: Map(6หลัก→item) }
+    let dest = '';          // ปริ้นไปที่แผนกไหน (จำไว้ในเครื่อง)
+    try { dest = localStorage.getItem('tag137_dest') || ''; } catch (e) {}
     let pending = '';       // บาร์โค้ดที่สแกนไม่เจอ รอจับคู่
     let picked = null;      // สินค้าที่เลือกจากการค้นชื่อ
 
@@ -285,6 +301,8 @@
       $('cnt').textContent = items.length;
       $('sumItems').textContent = items.length + ' รายการ · ' + ps.length + ' แผ่น';
       $('print').disabled = !items.length;
+      $('destName').textContent = dest ? 'เครื่องปริ้น ' + dest : 'ยังไม่เลือกที่ปริ้น';
+      document.querySelectorAll('#dest button').forEach(x => x.classList.toggle('on', x.dataset.v === dest));
       $('items').innerHTML = items.length
         ? items.map((it, i) => `<li${it.fresh ? ' class="new"' : ''}><span class="n">${i + 1}</span>
             <span class="code">${esc(it.item)}</span><span class="d">${esc(it.desc)}</span>
@@ -532,12 +550,19 @@
       document.querySelectorAll('#sigMode button').forEach(x => x.classList.toggle('on', x === b));
       render();
     };
+    $('dest').onclick = e => {
+      const b = e.target.closest('button'); if (!b) return;
+      dest = b.dataset.v;
+      try { localStorage.setItem('tag137_dest', dest); } catch (e) {}
+      render();
+    };
     $('mini').onclick = () => { $('big').classList.add('on'); renderBig(); };
     $('close').onclick = () => $('big').classList.remove('on');
     $('print').onclick = () => {
       if (!$('aisle').value.trim() || !$('bay').value.trim()) { say('กรอก AISLE / BAY ก่อนนะครับ', 'err'); $('aisle').focus(); return; }
+      if (!dest) { say('เลือกที่ปริ้นด้านล่างก่อนนะครับ (ALC / GR / FRESH / RC)', 'err'); return; }
       // ของจริง: ส่ง {aisle, bay, items, sigMode, me} ไปเข้าคิวที่ Apps Script → คอม GR สั่ง Excel ปริ้นออก Fuji
-      alert(`(โหมดทดลอง)\nส่งคำสั่งปริ้น ${items.length} รายการ · ${pages().length} แผ่น A3\nAISLE ${$('aisle').value} BAY ${$('bay').value}`);
+      alert(`(ยังไม่ได้ต่อเครื่องปริ้น)\nส่งไป ${dest}: ${items.length} รายการ · ${pages().length} แผ่น A3\nAISLE ${$('aisle').value} BAY ${$('bay').value}`);
     };
 
     (async () => {
