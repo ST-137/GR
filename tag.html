@@ -11,7 +11,7 @@
           --bg:#F3F6F4; --card:#fff; --red:#E53935; }
   * { box-sizing: border-box; margin: 0; }
   html, body { background: var(--bg); color: var(--ink); font-family: "Sarabun", system-ui, sans-serif; }
-  body { padding-bottom: 170px; }
+  body { padding-bottom: 190px; }
 
   /* ---------- ส่วนหัว + กระดาษจำลองมุมขวาบน ---------- */
   header { background: var(--green); color: #fff; padding: 14px 152px 16px 16px; min-height: 214px; }
@@ -86,6 +86,11 @@
   #dest button { font-size: 15px; font-weight: 800; }
   #dest button.on { background: var(--green); color: #fff; }
   #bar .act { display: flex; gap: 10px; align-items: center; }
+  #dest button i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-left: 6px; vertical-align: middle; background: transparent; }
+  #dest button i.ready { background: #2ECC71; } #dest button i.off { background: #F39C12; }
+  #dest button i.no { background: #C0C6C3; } #dest button i.bad { background: var(--red); }
+  #destSt { font-size: 13px; margin: -4px 0 8px; min-height: 18px; color: var(--muted); }
+  #destSt.warn { color: #B9770E; } #destSt.err { color: var(--red); } #destSt.ok { color: var(--green-d); }
   #bar .info { flex: 1; font-size: 13px; color: var(--muted); }
   #bar .info b { color: var(--ink); font-size: 15px; }
   #bar button { padding: 13px 22px; font-size: 16px; }
@@ -194,23 +199,27 @@
     </section>
 
     <section class="card">
-      <h2>ช่อง "ตรวจนับโดย"</h2>
+      <h2>ชื่อ</h2>
+      <label class="f" for="byName">ชื่อผู้สั่งปริ้น (จำไว้ในเครื่อง กรอกครั้งเดียว)</label>
+      <input id="byName" placeholder="เช่น จิ๊บ GR" autocomplete="off" style="font-size:18px">
+      <div class="msg">พิมพ์ตัวเล็กไว้ท้ายกระดาษ "สั่งพิมพ์โดย …"</div>
+      <label class="f" style="margin-top:12px">ช่อง "ตรวจนับโดย"</label>
       <div class="seg" id="sigMode">
         <button data-v="blank" class="on">เว้นว่างให้เซ็น</button>
-        <button data-v="name">ใส่ชื่อไลน์ฉัน</button>
+        <button data-v="name">กรอกชื่อผู้ตรวจนับ</button>
       </div>
-      <div class="msg">ท้ายกระดาษจะพิมพ์ "สั่งพิมพ์โดย <span id="meName">…</span>" ตัวเล็กไว้เสมอ</div>
+      <input id="sigName" placeholder="ชื่อผู้ตรวจนับ" autocomplete="off" style="font-size:18px;margin-top:8px" hidden>
     </section>
   </main>
 
   <div id="bar">
     <div class="lbl">ปริ้นไปที่</div>
     <div class="seg" id="dest">
-      <button data-v="ALC">ALC</button>
-      <button data-v="GR">GR</button>
-      <button data-v="FRESH">FRESH</button>
-      <button data-v="RC">RC</button>
+      <button data-v="GR">GR<i></i></button>
+      <button data-v="ALC">ALC<i></i></button>
+      <button data-v="RC">RC<i></i></button>
     </div>
+    <div id="destSt"></div>
     <div class="act">
       <div class="info"><b id="sumItems">0 รายการ</b><br>A3 · <span id="destName">ยังไม่เลือกที่ปริ้น</span></div>
       <button id="print" disabled>🖨️ สั่งปริ้น</button>
@@ -276,7 +285,11 @@
     let items = [], sigMode = 'blank', me = 'ทดลอง', uid = '', scanner = null, busy = false, lastScan = '', lastAt = 0;
     let DB = null;          // ข้อมูลสินค้าในมือถือ { items: Map(item→ชื่อ), bc: Map(บาร์โค้ด→item), w: Map(6หลัก→item) }
     let dest = '';          // ปริ้นไปที่แผนกไหน (จำไว้ในเครื่อง)
+    const DESTS = ['GR', 'ALC', 'RC'];
+    let prn = { printers: {}, agentOnline: null };   // สถานะเครื่องปริ้น (คอม GR รายงานมา)
     try { dest = localStorage.getItem('tag137_dest') || ''; } catch (e) {}
+    if (DESTS.indexOf(dest) === -1) dest = '';
+    try { setTimeout(() => { $('byName').value = localStorage.getItem('tag137_by') || ''; render(); }, 0); } catch (e) {}
     let pending = '';       // บาร์โค้ดที่สแกนไม่เจอ รอจับคู่
     let picked = null;      // สินค้าที่เลือกจากการค้นชื่อ
 
@@ -302,9 +315,9 @@
           ${body}
         </table>
         <div class="foot"><span class="br">(((</span>&nbsp;ตรวจนับโดย
-          <span class="sig">${sigMode === 'name' ? esc(me) : ''}</span>
+          <span class="sig">${sigMode === 'name' ? esc($('sigName').value.trim()) : ''}</span>
           วันที่ ${today()} <span class="br">)))</span></div>
-        <div class="by">สั่งพิมพ์โดย ${esc(me)}</div>
+        <div class="by">สั่งพิมพ์โดย ${esc($('byName').value.trim() || '-')}</div>
       </div>`;
     }
 
@@ -332,6 +345,7 @@
       $('sumItems').textContent = items.length + ' รายการ · ' + ps.length + ' แผ่น';
       $('print').disabled = !items.length;
       $('destName').textContent = dest ? 'เครื่องปริ้น ' + dest : 'ยังไม่เลือกที่ปริ้น';
+      showPrn();
       document.querySelectorAll('#dest button').forEach(x => x.classList.toggle('on', x.dataset.v === dest));
       $('items').innerHTML = items.length
         ? items.map((it, i) => `<li${it.fresh ? ' class="new"' : ''}><span class="n">${i + 1}</span>
@@ -578,13 +592,40 @@
       const b = e.target.closest('button'); if (!b) return;
       sigMode = b.dataset.v;
       document.querySelectorAll('#sigMode button').forEach(x => x.classList.toggle('on', x === b));
+      $('sigName').hidden = sigMode !== 'name';
+      if (sigMode === 'name') { if (!$('sigName').value) $('sigName').value = $('byName').value; $('sigName').focus(); }
       render();
     };
+    $('byName').addEventListener('input', () => { try { localStorage.setItem('tag137_by', $('byName').value.trim()); } catch (e) {} render(); });
+    $('sigName').addEventListener('input', () => render());
+
+    // ---------- สถานะเครื่องปริ้น ----------
+    function prnState(d) {
+      if (prn.agentOnline === false) return ['no', 'warn', '💤 คอม GR ไม่ได้เปิดโปรแกรมปริ้น — งานจะรอในคิว'];
+      const v = prn.printers[d];
+      if (!v) return ['', '', ''];
+      if (v === 'ready') return ['ready', 'ok', '🟢 เครื่อง ' + d + ' พร้อม'];
+      if (v === 'not_installed') return ['no', 'err', '⚪ เครื่อง ' + d + ' ยังไม่ได้ติดตั้ง — เลือกเครื่องอื่นก่อน'];
+      if (v === 'not_found') return ['bad', 'err', '🔴 คอม GR หาเครื่อง ' + d + ' ไม่เจอ'];
+      return ['off', 'warn', '🟠 เครื่อง ' + d + ' อาจปิดอยู่ (' + v.replace('offline: ', '') + ')'];
+    }
+    function showPrn() {
+      document.querySelectorAll('#dest button').forEach(b => { b.querySelector('i').className = prnState(b.dataset.v)[0]; });
+      const [, cls, txt] = dest ? prnState(dest) : ['', '', ''];
+      $('destSt').textContent = txt; $('destSt').className = cls;
+    }
+    async function loadPrn() {
+      if (!API_URL) return;
+      try { prn = await (await fetch(API_URL + '?action=printers')).json(); prn.printers = prn.printers || {}; } catch (e) {}
+      showPrn();
+    }
+    setInterval(() => { if (!document.hidden) loadPrn(); }, 30000);
+
     $('dest').onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
       dest = b.dataset.v;
       try { localStorage.setItem('tag137_dest', dest); } catch (e) {}
-      render();
+      render(); loadPrn();
     };
     $('chipBtn').onclick = () => { $('big').classList.add('on'); renderBig(); };
     window.addEventListener('scroll', () => {
@@ -616,10 +657,13 @@
       pstShow('⏳', 'กำลังส่งงาน…', `${n} รายการ · ${pg} แผ่น A3 → ${dest}`, [], true);
       let r;
       try {
-        r = await (await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        const txt = await (await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ action: 'print', dest, aisle: $('aisle').value.trim(), bay: $('bay').value.trim(),
-            items: items.map(it => ({ item: it.item, desc: it.desc })), sig: sigMode, by: me, uid }) })).json();
-      } catch (e) { r = { error: 'เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง' }; }
+            items: items.map(it => ({ item: it.item, desc: it.desc })),
+            sig: sigMode === 'name' ? $('sigName').value.trim() : '', by: $('byName').value.trim(), uid, lineName: me }) })).text();
+        try { r = JSON.parse(txt); }
+        catch (e) { r = { error: 'Google ตอบกลับไม่ถูกต้อง ("' + txt.slice(0, 40) + '") — โค้ดบอทอาจยังไม่ได้ Deploy เวอร์ชันใหม่' }; }
+      } catch (e) { r = { error: 'เชื่อมต่อไม่ได้ (' + (e.message || e) + ') ลองใหม่อีกครั้ง' }; }
       if (r.error === 'no_permission') {
         pstShow('🔒', 'ยังไม่มีสิทธิ์ปริ้น', `แจ้ง admin ให้เปิดสิทธิ์ให้ "${me}" ก่อนนะครับ`, [['ปิด', pstClose]]); return;
       }
@@ -636,7 +680,8 @@
           pstShow('✅', 'ปริ้นแล้ว', `ไปรับกระดาษที่เครื่อง ${dest} ได้เลย`, [['🏷️ ทำ Tag ใหม่', newTag], ['ปิด', pstClose, true]]); return;
         }
         if (st.status === 'failed') {
-          pstShow('⚠️', 'ปริ้นไม่สำเร็จ', st.note || 'เครื่องปริ้นมีปัญหา', [['ลองอีกครั้ง', sendPrint], ['ปิด', pstClose, true]]); return;
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+          pstShow('⚠️', 'ปริ้นไม่สำเร็จ', st.note || 'เครื่องปริ้นมีปัญหา', [['ลองอีกครั้ง', checkAndPrint], ['ปิด', pstClose, true]]); return;
         }
         if (st.status === 'waiting' && st.agentOnline === false && Date.now() - t0 > 15000) {
           pstShow('💤', 'คอม GR ไม่ได้เปิดโปรแกรมปริ้น', 'งานรออยู่ในคิว จะปริ้นออกเองเมื่อคอม GR เปิดโปรแกรม', [['ปิด', pstClose]]); return;
@@ -648,9 +693,33 @@
 
     $('print').onclick = () => {
       if (!$('aisle').value.trim() || !$('bay').value.trim()) { say('กรอก AISLE / BAY ก่อนนะครับ', 'err'); $('aisle').focus(); return; }
-      if (!dest) { say('เลือกที่ปริ้นด้านล่างก่อนนะครับ (ALC / GR / FRESH / RC)', 'err'); return; }
-      sendPrint();
+      if (!dest) { say('เลือกที่ปริ้นด้านล่างก่อนนะครับ (GR / ALC / RC)', 'err'); return; }
+      if (!$('byName').value.trim()) { say('กรอกชื่อผู้สั่งปริ้นก่อนนะครับ', 'err'); $('byName').focus(); $('byName').scrollIntoView({ block: 'center' }); return; }
+      if (sigMode === 'name' && !$('sigName').value.trim()) { say('กรอกชื่อผู้ตรวจนับ หรือเลือก "เว้นว่างให้เซ็น"', 'err'); $('sigName').focus(); return; }
+      checkAndPrint();
     };
+
+    async function checkAndPrint() {
+      pstShow('⏳', 'กำลังเช็กเครื่องปริ้น…', dest, [], true);
+      await loadPrn();
+      const v = prn.printers[dest];
+      if (v === 'not_installed' || v === 'not_found') {
+        pstShow('⛔', 'ปริ้นที่เครื่อง ' + dest + ' ไม่ได้', v === 'not_installed' ? 'เครื่องนี้ยังไม่ได้ติดตั้ง เลือกเครื่องอื่นก่อนนะครับ' : 'คอม GR หาเครื่องนี้ไม่เจอ แจ้ง admin',
+          [['ปิด', pstClose]]);
+        return;
+      }
+      if (v && v !== 'ready' && prn.agentOnline !== false) {
+        pstShow('🟠', 'เครื่อง ' + dest + ' อาจปิดอยู่', v.replace('offline: ', '') + ' — ถ้าส่งแล้วเครื่องไม่รับงาน ระบบจะแจ้งกลับมา',
+          [['ส่งเลย', sendPrint], ['ยกเลิก', pstClose, true]]);
+        return;
+      }
+      if (prn.agentOnline === false) {
+        pstShow('💤', 'คอม GR ไม่ได้เปิดโปรแกรมปริ้น', 'ส่งไว้ในคิวได้ จะปริ้นออกเมื่อคอม GR เปิดโปรแกรม',
+          [['ส่งไว้ในคิว', sendPrint], ['ยกเลิก', pstClose, true]]);
+        return;
+      }
+      sendPrint();
+    }
 
     (async () => {
       if (LIFF_ID) {
@@ -659,9 +728,9 @@
           if (liff.isLoggedIn()) { const p = await liff.getProfile(); me = p.displayName; uid = p.userId; }
         } catch (e) { say('LIFF: ' + (e.message || e), 'err'); }
       }
-      $('meName').textContent = me;
       render();
       loadDB();
+      loadPrn();
     })();
   </script>
 </body>
