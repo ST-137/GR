@@ -3,596 +3,129 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Print Tag Pallet</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
+<title>สแกนบาร์โค้ด</title>
 <style>
-  :root { --green:#06C755; --green-d:#04A847; --ink:#1B2420; --muted:#7A847F; --line:#E3E8E5;
-          --bg:#F3F6F4; --card:#fff; --red:#E53935; }
+  :root { --green:#06C755; --dark:#0F1A14; --muted:#8C8C8C; --red:#E53935; }
   * { box-sizing: border-box; margin: 0; }
-  html, body { background: var(--bg); color: var(--ink); font-family: "Sarabun", system-ui, sans-serif; }
-  body { padding-bottom: 170px; }
-
-  /* ---------- ส่วนหัว + กระดาษจำลองมุมขวาบน ---------- */
-  header { background: var(--green); color: #fff; padding: 14px 152px 16px 16px; min-height: 214px; }
-  header .grid2 { margin-top: 12px; }
-  header label.f { color: #E3FFEF; }
-  header input { border-color: transparent; }
-  header h1 { font-size: 19px; font-weight: 800; }
-  header p { font-size: 13px; opacity: .9; margin-top: 2px; }
-  #mini { position: absolute; top: 10px; right: 12px; z-index: 30; width: 124px; aspect-ratio: 297 / 420;
-          background: #fff; border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.25); overflow: hidden;
-          cursor: zoom-in; transition: transform .2s; }
-  #mini.bump { transform: scale(1.08); }
-  /* แถบตัวอย่างแบบย่อ — โผล่ที่ขอบบนเมื่อเลื่อนจอลงจนกระดาษมุมขวาหายไป */
-  #chip { position: fixed; top: 0; left: 0; right: 0; z-index: 35; background: var(--green); color: #fff;
-          display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 16px;
-          transform: translateY(-110%); transition: transform .2s; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
-  #chip.on { transform: none; }
-  #chip .t { flex: 1; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #chip button { background: #fff; color: var(--green-d); padding: 7px 12px; font-size: 14px; white-space: nowrap; }
-  #chip.flash button { animation: flash2 .6s; }
-  @keyframes flash2 { 0% { transform: scale(1.15); } 100% { transform: none; } }
-  #mini .pg { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-  #miniInfo { position: absolute; top: 190px; right: 12px; z-index: 30; width: 124px; text-align: center;
-              font-size: 11px; color: #fff; background: rgba(0,0,0,.35); border-radius: 8px; padding: 2px 0; }
-
-  main { padding: 14px 16px; max-width: 640px; }
-  .card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px;
-          box-shadow: 0 1px 2px rgba(0,0,0,.05); }
-  .card h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-  input { width: 100%; font: inherit; font-size: 20px; font-weight: 700; padding: 10px 12px;
-          border: 1.5px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); }
-  input:focus { outline: none; border-color: var(--green); }
-  .row { display: flex; gap: 8px; }
-  .row input { flex: 1; min-width: 0; }
-  button { font: inherit; font-weight: 700; font-size: 15px; border: 0; border-radius: 10px;
-           padding: 10px 14px; background: var(--green); color: #fff; cursor: pointer; }
-  button.ghost { background: #EAF8F0; color: var(--green-d); }
-  button:disabled { opacity: .45; }
-
-  #cam { position: relative; height: 170px; border-radius: 10px; overflow: hidden; background: #000;
-         margin-bottom: 10px; display: none; }
-  #cam.on { display: block; }
+  html, body { height: 100%; background: var(--dark); color: #fff;
+    font-family: -apple-system, "Segoe UI", "Noto Sans Thai", "Sarabun", sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { padding: 16px 16px 10px; }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header p { font-size: 13px; color: #B9C7BF; margin-top: 4px; }
+  #cam { position: relative; flex: 1; min-height: 300px; background: #000; overflow: hidden; }
   #reader { position: absolute; inset: 0; }
   #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
-  #cam::after { content: ""; position: absolute; left: 12%; right: 12%; top: 50%; height: 2px;
-                background: var(--red); opacity: .8; }
-  .msg { font-size: 13px; margin-top: 6px; min-height: 18px; color: var(--muted); }
-  .msg.err { color: var(--red); }
-  .msg.ok { color: var(--green-d); }
-
-  ol#items { list-style: none; padding: 0; }
-  ol#items li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
-  ol#items li:first-child { border-top: 0; }
-  ol#items .n { width: 20px; color: var(--muted); font-size: 13px; text-align: right; }
-  ol#items .code { font-weight: 800; width: 62px; }
-  ol#items .d { flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  ol#items .x { background: none; color: var(--muted); padding: 4px 8px; font-size: 18px; }
-  ol#items li.new { animation: flash 1s; }
-  @keyframes flash { from { background: #DFF7E9; } to { background: transparent; } }
-  .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
-
-  .seg { display: flex; background: var(--bg); border-radius: 10px; padding: 3px; }
-  .seg button { flex: 1; background: none; color: var(--muted); font-size: 14px; padding: 8px 4px; }
-  .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-
-  #bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: #fff;
-         padding: 10px 16px 14px; box-shadow: 0 -2px 10px rgba(0,0,0,.08); }
-  #bar .lbl { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-  #dest { margin-bottom: 10px; }
-  #dest button { font-size: 15px; font-weight: 800; }
-  #dest button.on { background: var(--green); color: #fff; }
-  #bar .act { display: flex; gap: 10px; align-items: center; }
-  #bar .info { flex: 1; font-size: 13px; color: var(--muted); }
-  #bar .info b { color: var(--ink); font-size: 15px; }
-  #bar button { padding: 13px 22px; font-size: 16px; }
-
-  .link { background: none; color: var(--green-d); padding: 6px 2px; font-size: 14px; font-weight: 600; }
-  #dbStat { font-size: 12px; color: var(--muted); margin-top: 2px; }
-
-  /* ---------- ค้นจากชื่อ / จับคู่บาร์โค้ด ---------- */
-  #find { position: fixed; inset: 0; z-index: 40; background: rgba(15,20,18,.5); display: none; align-items: flex-end; }
-  #find.on { display: flex; }
-  #find .sheet2 { background: #fff; width: 100%; max-height: 88vh; border-radius: 18px 18px 0 0; padding: 16px;
-                  display: flex; flex-direction: column; }
-  #find .hd2 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-  #find .hd2 b { font-size: 17px; }
-  #find .miss { background: #FFF4E5; color: #8A5300; border-radius: 10px; padding: 8px 10px; font-size: 14px; margin-bottom: 10px; }
-  #find .miss b { font-size: 16px; letter-spacing: .5px; }
-  #find input { font-size: 18px; font-weight: 600; }
-  #res { list-style: none; padding: 0; overflow: auto; margin-top: 8px; flex: 1; min-height: 120px; }
-  #res li { padding: 11px 4px; border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: baseline; cursor: pointer; }
-  #res li:active { background: #EAF8F0; }
-  #res .code { font-weight: 800; min-width: 62px; }
-  #res .d { flex: 1; font-size: 15px; }
-  #res .tag { font-size: 11px; color: #fff; background: #9AA3A0; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
-  #res .note { color: var(--muted); font-size: 14px; border: 0; cursor: default; }
-  #confirm { display: none; }
-  #confirm.on { display: block; }
-  #confirm .box { border: 2px solid var(--green); border-radius: 12px; padding: 12px; margin: 10px 0; font-size: 15px; }
-  #confirm .box .big { font-size: 18px; font-weight: 800; margin: 4px 0; }
-  #confirm .btns { display: grid; gap: 8px; }
-
-  /* ---------- ดูตัวอย่างเต็มจอ ---------- */
-  #big { position: fixed; inset: 0; z-index: 50; background: rgba(15,20,18,.92); display: none;
-         overflow: auto; padding: 16px 0 40px; }
-  #big.on { display: block; }
-  #big .top { color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 0 16px 10px; }
-  #big .sheet { position: relative; margin: 0 auto 14px; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.4); overflow: hidden; }
-  #big .sheet .pg { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-
-  /* ---------- หน้ากระดาษ A3 (ขนาดจริงที่ 96dpi: 1123 x 1587 px) ---------- */
-  .pg { width: 1123px; height: 1587px; padding: 70px 70px 0; font-family: "Sarabun", sans-serif; color: #000; background: #fff; }
-  .pg .no { text-align: right; font-size: 30px; padding-right: 10px; height: 52px; }
-  .pg table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .pg td { border-left: 2px solid #000; border-right: 2px solid #000; height: 82px; vertical-align: middle; }
-  .pg tr.h td { border: 2px solid #000; height: 76px; }
-  .pg tr.it td { border-bottom: 1.5px solid #000; }
-  
-  .pg .c1 { text-align: center; font: 700 34px Arial, sans-serif; }
-  .pg .c2 { font-size: 44px; font-weight: 800; padding-left: 10px; white-space: nowrap; overflow: hidden; }
-  
-  .pg .c3 { text-align: center; font-size: 40px; font-weight: 800; }
-  .pg .hd { font-size: 26px; font-weight: 700; padding-left: 4px; white-space: nowrap; }
-  .pg .hd u { font-size: 64px; font-weight: 800; text-decoration: none; border-bottom: 3px solid #000;
-              padding: 0 26px; display: inline-block; line-height: 1; min-width: 190px; text-align: center; }
-  .pg .st { font: 700 26px Georgia, serif; text-align: center; }
-  .pg .foot { position: absolute; left: 70px; right: 70px; bottom: 62px; display: flex; align-items: flex-end;
-              font-size: 32px; font-weight: 700; gap: 10px; }
-  .pg .foot .br { font-size: 50px; font-weight: 400; }
-  .pg .foot .sig { flex: 1; border-bottom: 2.5px solid #000; min-height: 44px; text-align: center; font-weight: 800; }
-  .pg .by { position: absolute; right: 70px; bottom: 22px; font-size: 18px; color: #555; }
+  #frame { position: absolute; left: 50%; top: 50%; width: 78%; max-width: 340px; aspect-ratio: 2 / 1;
+    transform: translate(-50%, -50%); border: 3px solid var(--green); border-radius: 14px;
+    box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); pointer-events: none; }
+  #frame::after { content: ""; position: absolute; left: 6%; right: 6%; top: 50%; height: 2px;
+    background: var(--red); opacity: .85; animation: scan 1.6s ease-in-out infinite; }
+  @keyframes scan { 0%,100% { transform: translateY(-34px); } 50% { transform: translateY(34px); } }
+  #status { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font-size: 14px;
+    text-shadow: 0 1px 3px #000; padding: 0 16px; }
+  footer { padding: 12px 16px 18px; background: #16241C; }
+  footer label { font-size: 13px; color: #B9C7BF; }
+  .row { display: flex; gap: 8px; margin-top: 6px; }
+  input { flex: 1; min-width: 0; font-size: 18px; padding: 12px; border-radius: 10px; border: 0;
+    background: #fff; color: #111; }
+  button { font-size: 16px; font-weight: 600; padding: 12px 16px; border-radius: 10px; border: 0;
+    background: var(--green); color: #fff; }
+  button:disabled { opacity: .5; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  #done { display: none; position: fixed; inset: 0; background: var(--dark); align-items: center;
+    justify-content: center; flex-direction: column; gap: 10px; text-align: center; padding: 24px; }
+  #done b { font-size: 28px; letter-spacing: 1px; }
 </style>
 </head>
 <body>
   <header>
-    <h1>🏷️ Print Tag Pallet</h1>
-    <p>สแกนทีละตัว · ดูกระดาษจำลองมุมขวา</p>
-    <div class="grid2">
-      <div><label class="f" for="aisle">AISLE NO.</label><input id="aisle" inputmode="numeric" placeholder="165"></div>
-      <div><label class="f" for="bay">BAY NO.</label><input id="bay" inputmode="numeric" placeholder="003"></div>
-    </div>
+    <h1>📷 สแกนบาร์โค้ดสินค้า</h1>
+    <p>เล็งบาร์โค้ดให้อยู่ในกรอบสีเขียว ระบบจะค้นหาให้อัตโนมัติ</p>
   </header>
 
-  <div id="chip"><span class="t" id="chipT">AISLE – BAY –</span><button id="chipBtn">📄 ดูตัวอย่าง</button></div>
-  <div id="mini" title="แตะเพื่อดูเต็มจอ"></div>
-  <div id="miniInfo">🔍 แตะเพื่อขยาย · <span id="pgCount">1 แผ่น</span></div>
+  <div id="cam"><div id="reader"></div><div id="frame"></div><div id="status">กำลังเปิดกล้อง…</div></div>
 
-  <main>
-    <section class="card">
-      <h2>เพิ่มสินค้า</h2>
-      <div id="cam"><div id="reader"></div></div>
-      <div class="row">
-        <input id="code" inputmode="numeric" placeholder="รหัส Item / บาร์โค้ด" autocomplete="off">
-        <button id="add">เพิ่ม</button>
-      </div>
-      <div class="row" style="margin-top:8px"><button id="camBtn" class="ghost" style="flex:1">📷 เปิดกล้องสแกน</button></div>
-      <div class="msg" id="msg"></div>
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <button class="link" id="findBtn">🔎 ค้นจากชื่อสินค้า</button>
-        <span id="dbStat"></span>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>รายการบน Tag (<span id="cnt">0</span>)</h2>
-      <ol id="items"></ol>
-    </section>
-
-    <section class="card">
-      <h2>ช่อง "ตรวจนับโดย"</h2>
-      <div class="seg" id="sigMode">
-        <button data-v="blank" class="on">เว้นว่างให้เซ็น</button>
-        <button data-v="name">ใส่ชื่อไลน์ฉัน</button>
-      </div>
-      <div class="msg">ท้ายกระดาษจะพิมพ์ "สั่งพิมพ์โดย <span id="meName">…</span>" ตัวเล็กไว้เสมอ</div>
-    </section>
-  </main>
-
-  <div id="bar">
-    <div class="lbl">ปริ้นไปที่</div>
-    <div class="seg" id="dest">
-      <button data-v="ALC">ALC</button>
-      <button data-v="GR">GR</button>
-      <button data-v="FRESH">FRESH</button>
-      <button data-v="RC">RC</button>
+  <footer>
+    <label for="code">สแกนไม่ติด? พิมพ์รหัสสินค้า หรือเลขบาร์โค้ดเอง</label>
+    <div class="row">
+      <input id="code" inputmode="numeric" placeholder="เช่น 75608 หรือ 28181781" autocomplete="off">
+      <button id="go">ค้นหา</button>
     </div>
-    <div class="act">
-      <div class="info"><b id="sumItems">0 รายการ</b><br>A3 · <span id="destName">ยังไม่เลือกที่ปริ้น</span></div>
-      <button id="print" disabled>🖨️ สั่งปริ้น</button>
-    </div>
-  </div>
+    <div class="hint" id="hint"></div>
+  </footer>
 
-  <div id="find">
-    <div class="sheet2">
-      <div class="hd2"><b>ค้นหาสินค้าจากชื่อ</b><button class="ghost" id="findClose">ปิด</button></div>
-      <div class="miss" id="miss" hidden>สแกนแล้วไม่พบ <b id="missCode"></b><br>ค้นชื่อแล้วเลือกสินค้า ระบบจะจำบาร์โค้ดนี้ไว้ให้</div>
-      <div id="search">
-        <input id="q" placeholder="พิมพ์ชื่อ เช่น โค้ก 325" autocomplete="off">
-        <ol id="res"></ol>
-        <button class="link" id="more" hidden>ค้นรวมสินค้าเลิกขาย / Inactive ด้วย</button>
-      </div>
-      <div id="confirm">
-        <div class="box">จับคู่บาร์โค้ด <b id="cCode"></b><div class="big" id="cItem"></div>
-          <span class="msg">ครั้งต่อไปใครสแกนบาร์โค้ดนี้ จะเจอสินค้านี้ทันที (ทั้งหน้านี้และบอท)</span></div>
-        <div class="btns">
-          <button id="cYes">✓ ถูกต้อง จำไว้ และเพิ่มลง Tag</button>
-          <button class="ghost" id="cOnly">เพิ่มลง Tag อย่างเดียว (ไม่จำ)</button>
-          <button class="link" id="cBack">‹ เลือกใหม่</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="big">
-    <div class="top"><b>ตัวอย่างก่อนปริ้น (A3)</b><button class="ghost" id="close">ปิด</button></div>
-    <div id="sheets"></div>
-  </div>
+  <div id="done"><div>กำลังค้นหา</div><b id="doneCode"></b><div class="hint">ปิดหน้านี้แล้วดูผลในแชท</div></div>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script>
     // ===== ตั้งค่า =====
-    const LIFF_ID = '';            // ใส่ LIFF ID ของหน้านี้ (ยังว่าง = โหมดทดลอง)
-    const API_URL = 'https://script.google.com/macros/s/AKfycbz9kcxmlb75jV1hT0dgtavyJYoEYo7p0fpsVtvBsw-aHuhS3fNC_YoGUXmNfHBi_1-O/exec';  // URL Web app (Apps Script) — ลบออกให้ว่าง = โหมดทดลอง
-    const ROWS_PER_PAGE = 8;       // ตรงกับ Tag เดิม (B4:D11)
+    const LIFF_ID = '2011981240-JqXiGqsd';   // ได้จาก LINE Developers → LINE Login channel → LIFF
+    const OA_ID   = '@749swpsv';           // LINE ID ของบอท (ใช้สำรองเมื่อเปิดนอกไลน์)
+    const PREFIX  = '@@';
     // ===================
 
-    // ข้อมูลตัวอย่างสำหรับโหมดทดลอง (ของจริงจะถามจากบอท)
-    const DEMO = {
-      '100677': 'พลาสเตอร์ยาเทนโซพลาส100ชิ้น*3', '282503': 'พลาสเตอร์ผ้าตราเสือ 100แผ่น*1',
-      '302835': 'เทนโซพล๊าสผ้า100ชิ้น*1กล่อง', '41340': 'พลาสเตอร์ผ้านีโอพลาสเอส100แผ่น*1',
-      '478842': "พลาสเตอร์ไทเกอร์พลาสผ้าแดง100'S*3", '646971': 'เทนโซพล๊าสผ้ายืด-แอล100ชิ้น*1',
-      '229708': 'ฟาร์มโชคชัยนม ขนาด 2 ลิตร', '857145': 'ชาวเกาะวุ้นมะพร้าวในน้ำเชื่อม1กก',
-      '75608': 'หัวไหล่หมู กก.ละ', '119816': 'เครื่องในเป็ดรวมแช่แข็ง',
-    };
-    const DEMO_BC = {
-      '8850672000035': '282503', '8850672230128': '282503', '8850672000011': '302835',
-      '8850672210083': '646971', '8850274016052': '229708', '8850367993185': '857145',
-    };
-    const DEMO_W = { '210040': '75608', '216809': '119816' };   // บาร์โค้ดชั่งน้ำหนัก (6 หลักแรก)
-
     const $ = (id) => document.getElementById(id);
-    const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    let items = [], sigMode = 'blank', me = 'ทดลอง', uid = '', scanner = null, busy = false, lastScan = '', lastAt = 0;
-    let DB = null;          // ข้อมูลสินค้าในมือถือ { items: Map(item→ชื่อ), bc: Map(บาร์โค้ด→item), w: Map(6หลัก→item) }
-    let dest = '';          // ปริ้นไปที่แผนกไหน (จำไว้ในเครื่อง)
-    try { dest = localStorage.getItem('tag137_dest') || ''; } catch (e) {}
-    let pending = '';       // บาร์โค้ดที่สแกนไม่เจอ รอจับคู่
-    let picked = null;      // สินค้าที่เลือกจากการค้นชื่อ
+    const status = (t) => { $('status').textContent = t; };
+    let scanner = null, sent = false, liffReady = false;
 
-    function today() {
-      const d = new Date();
-      return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
-    }
+    // ส่งเลขที่สแกนได้ตามจริง — บอทจะแปลงเป็นรหัส Item เอง (เช็กตารางบาร์โค้ดก่อน แล้วค่อยใช้สูตรตัดเลข)
+    async function send(raw) {
+      const scanned = String(raw || '').replace(/\D/g, '');
+      if (!scanned || sent) return;
+      const code = scanned;
+      sent = true;
+      if (navigator.vibrate) navigator.vibrate(80);
+      try { if (scanner) await scanner.stop(); } catch (e) {}
+      $('doneCode').textContent = code;
+      $('done').style.display = 'flex';
 
-    // ---------- หน้ากระดาษ ----------
-    function pageHTML(rows, no, total) {
-      const aisle = $('aisle').value.trim(), bay = $('bay').value.trim();
-      let body = '';
-      for (let i = 0; i < ROWS_PER_PAGE; i++) {
-        const it = rows[i];
-        body += it
-          ? `<tr class="it"><td class="c1">${esc(it.item)}</td><td class="c2">${esc(it.desc)}</td></tr>`
-          : `<tr class="it"><td class="c1"></td><td class="c2"></td></tr>`;
-      }
-      return `<div class="pg">
-        <div class="no">PAGE&nbsp; ${no} / ${total}</div>
-        <table><colgroup><col style="width:150px"><col></colgroup>
-          <tr class="h"><td colspan="2" class="hd">AISLE NO.<u>${esc(aisle)}</u> BAY NO.<u>${esc(bay)}</u></td></tr>
-          ${body}
-        </table>
-        <div class="foot"><span class="br">(((</span>&nbsp;ตรวจนับโดย
-          <span class="sig">${sigMode === 'name' ? esc(me) : ''}</span>
-          วันที่ ${today()} <span class="br">)))</span></div>
-        <div class="by">สั่งพิมพ์โดย ${esc(me)}</div>
-      </div>`;
-    }
-
-    function pages() {
-      const out = [];
-      for (let i = 0; i < Math.max(items.length, 1); i += ROWS_PER_PAGE) out.push(items.slice(i, i + ROWS_PER_PAGE));
-      return out;
-    }
-
-    function render(bump) {
-      const ps = pages();
-      // รูปเล็กมุมขวาบน = แผ่นสุดท้าย (แผ่นที่กำลังเพิ่มของ)
-      const mini = $('mini');
-      mini.innerHTML = pageHTML(ps[ps.length - 1], ps.length, ps.length);
-      mini.firstElementChild.style.transform = `scale(${mini.clientWidth / 1123})`;
-      fit(mini);
-      $('pgCount').textContent = ps.length + ' แผ่น';
-      if (bump) {
-        mini.classList.add('bump'); setTimeout(() => mini.classList.remove('bump'), 220);
-        $('chip').classList.remove('flash'); void $('chip').offsetWidth; $('chip').classList.add('flash');
-      }
-      $('chipT').textContent = `AISLE ${$('aisle').value || '–'} BAY ${$('bay').value || '–'} · ${items.length} รายการ · ${ps.length} แผ่น`;
-
-      $('cnt').textContent = items.length;
-      $('sumItems').textContent = items.length + ' รายการ · ' + ps.length + ' แผ่น';
-      $('print').disabled = !items.length;
-      $('destName').textContent = dest ? 'เครื่องปริ้น ' + dest : 'ยังไม่เลือกที่ปริ้น';
-      document.querySelectorAll('#dest button').forEach(x => x.classList.toggle('on', x.dataset.v === dest));
-      $('items').innerHTML = items.length
-        ? items.map((it, i) => `<li${it.fresh ? ' class="new"' : ''}><span class="n">${i + 1}</span>
-            <span class="code">${esc(it.item)}</span><span class="d">${esc(it.desc)}</span>
-            <button class="x" data-i="${i}" aria-label="ลบ">✕</button></li>`).join('')
-        : '<li class="empty">ยังไม่มีรายการ — สแกนหรือพิมพ์รหัสด้านบน</li>';
-      items.forEach(it => delete it.fresh);
-      if ($('big').classList.contains('on')) renderBig();
-    }
-
-    function renderBig() {
-      const ps = pages(), w = Math.min(window.innerWidth - 24, 700);
-      $('sheets').innerHTML = ps.map((p, i) =>
-        `<div class="sheet" style="width:${w}px;height:${w * 420 / 297}px">${pageHTML(p, i + 1, ps.length)}</div>`).join('');
-      document.querySelectorAll('#sheets .pg').forEach(el => { el.style.transform = `scale(${w / 1123})`; });
-      fit($('sheets'));
-    }
-
-    // ชื่อยาวเกินช่อง → ลดขนาดตัวอักษรลงจนพอดี (เหมือน Shrink to fit ใน Excel)
-    function fit(root) {
-      root.querySelectorAll('.c2').forEach(td => {
-        let fs = 44;
-        td.style.fontSize = fs + 'px';
-        while (td.scrollWidth > td.clientWidth && fs > 26) td.style.fontSize = (fs -= 2) + 'px';
-      });
-    }
-
-    // ---------- ข้อมูลสินค้าในมือถือ (โหลดครั้งเดียว ค้นได้ทันที) ----------
-    const CACHE_KEY = 'tag137_idx';
-    function buildDB(itemsTxt, bcTxt) {
-      const db = { items: new Map(), bc: new Map(), w: new Map() };
-      itemsTxt.split('\n').forEach(l => { const t = l.indexOf('\t'); if (t > 0) db.items.set(l.slice(0, t), l.slice(t + 1)); });
-      bcTxt.split('\n').forEach(l => {
-        const [code, item, type] = l.split('\t');
-        if (!code || !item) return;
-        if (type === 'W') { if (!db.w.has(code)) db.w.set(code, item); }
-        else if (!db.bc.has(code)) db.bc.set(code, item);      // บาร์โค้ดที่สอนไว้มาก่อน จึงชนะ
-      });
-      return db;
-    }
-    function dbStat(t) { $('dbStat').textContent = t; }
-
-    async function loadDB() {
-      if (!API_URL) {   // โหมดทดลอง
-        DB = { items: new Map(Object.entries(DEMO)), bc: new Map(Object.entries(DEMO_BC)), w: new Map(Object.entries(DEMO_W)) };
-        dbStat('โหมดทดลอง · ' + DB.items.size + ' รายการ');
-        return;
-      }
-      let cached = null;
-      try { cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch (e) {}
-      if (cached) { DB = buildDB(cached.items, cached.barcodes); dbStat('พร้อม · ' + DB.items.size.toLocaleString() + ' รายการ'); }
-      try {
-        const ver = await (await fetch(API_URL + '?action=ver')).json();
-        if (cached && cached.v === ver.v) return;                       // ข้อมูลล่าสุดอยู่แล้ว
-        dbStat(cached ? 'กำลังอัปเดตข้อมูล…' : 'กำลังโหลดข้อมูลสินค้า…');
-        const idx = await (await fetch(API_URL + '?action=index')).json();
-        DB = buildDB(idx.items, idx.barcodes);
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify(idx)); } catch (e) {}
-        dbStat('พร้อม · ' + DB.items.size.toLocaleString() + ' รายการ');
-      } catch (e) {
-        dbStat(DB ? 'ออฟไลน์ · ใช้ข้อมูลเดิม' : 'โหลดข้อมูลไม่ได้ — ค้นผ่านเน็ตแทน');
-      }
-    }
-
-    function ean13(d) { let s = 0; for (let i = 0; i < 12; i++) s += +d[i] * (i % 2 ? 3 : 1); return (10 - s % 10) % 10; }
-
-    // เลขที่สแกน/พิมพ์ → รหัส Item ที่เป็นไปได้ (กติกาเดียวกับบอท)
-    function candidates(code) {
-      const out = [code];
-      if (code.length >= 7 && DB) {
-        const tries = [code];
-        if (code.length === 12) tries.push('0' + code);
-        if (code.length === 13 && code[0] === '0') tries.push(code.slice(1));
-        if (code.length === 14) { const b = code.slice(1, 13); tries.push(b + ean13(b)); if (b[0] === '0') tries.push(b.slice(1) + ean13(b)); }
-        let hit = false;
-        tries.forEach(t => { if (DB.bc.has(t)) { out.push(DB.bc.get(t)); hit = true; } });
-        if (code.length === 13 && code[0] === '2' && DB.w.has(code.slice(0, 6))) { out.push(DB.w.get(code.slice(0, 6))); hit = true; }
-        if (!hit) {   // บาร์โค้ดที่ร้านพิมพ์เอง: ตัดหลักแรก-หลักท้าย
-          const strip = (x) => x.replace(/^0+/, '');
-          if (code.length === 8) out.push(strip(code.slice(1, 7)));
-          if (code.length === 13 && code[0] === '2') out.push(strip(code.slice(1, 7)));
-        }
-      }
-      return out.filter((c, i) => c && out.indexOf(c) === i);
-    }
-
-    async function lookup(code) {
-      const cands = candidates(code);
-      for (const c of cands) if (DB && DB.items.has(c)) return { item: c, desc: DB.items.get(c) };
-      if (API_URL) {   // ไม่มีในมือถือ (เช่น สินค้าเลิกขาย) → ถาม Google
-        for (const c of cands) {
-          const r = await (await fetch(API_URL + '?action=item&code=' + encodeURIComponent(c))).json();
-          if (!r.error) return r;
-        }
-      }
-      return { error: 'ไม่พบ ' + code };
-    }
-
-    function say(t, cls) { const m = $('msg'); m.textContent = t; m.className = 'msg ' + (cls || ''); }
-
-    function pushItem(it) {
-      if (items.some(x => x.item === it.item)) { say(it.item + ' มีในรายการแล้ว', 'err'); return false; }
-      items.push({ item: it.item, desc: it.desc, fresh: true });
-      if (navigator.vibrate) navigator.vibrate(60);
-      say('✓ เพิ่ม ' + it.item + ' ' + it.desc, 'ok');
-      render(true);
-      return true;
-    }
-
-    async function add(raw) {
-      const text = String(raw || '').trim();
-      if (!text || busy) return;
-      if (/\D/.test(text.replace(/\s/g, ''))) { openFind('', text); return; }   // พิมพ์เป็นชื่อ → ไปหน้าค้นชื่อ
-      const code = text.replace(/\D/g, '');
-      busy = true; say('กำลังค้นหา ' + code + ' …');
-      try {
-        const r = await lookup(code);
-        if (r.error) {
-          say('ไม่พบ ' + code, 'err');
-          if (navigator.vibrate) navigator.vibrate([60, 60, 60]);
-          openFind(code.length >= 7 ? code : '', '');
+      const text = PREFIX + code;
+      if (liffReady && liff.isInClient()) {
+        try {
+          await liff.sendMessages([{ type: 'text', text }]);
+          liff.closeWindow();
           return;
+        } catch (e) {
+          // ส่งไม่ได้ (เช่น เปิดจากที่ที่ไม่ใช่แชท) → ใช้วิธีสำรองด้านล่าง
         }
-        $('code').value = '';
-        pushItem(r);
-      } catch (e) {
-        say('เชื่อมต่อไม่ได้: ' + (e.message || e), 'err');
-      } finally { busy = false; }
-    }
-
-    // ---------- ค้นจากชื่อ + จับคู่บาร์โค้ด ----------
-    function openFind(code, text) {
-      pending = code; picked = null;
-      $('miss').hidden = !code; $('missCode').textContent = code;
-      $('confirm').classList.remove('on'); $('search').hidden = false;
-      $('q').value = text || ''; $('res').innerHTML = ''; $('more').hidden = true;
-      $('find').classList.add('on');
-      if (scanner) try { scanner.pause(true); } catch (e) {}
-      if (text) localSearch(); else setTimeout(() => $('q').focus(), 50);
-    }
-    function closeFind() {
-      $('find').classList.remove('on'); pending = ''; picked = null;
-      if (scanner) try { scanner.resume(); } catch (e) {}
-    }
-
-    function showResults(list, note) {
-      $('res').innerHTML = list.map((r, i) =>
-        `<li data-i="${i}"><span class="code">${esc(r.item)}</span><span class="d">${esc(r.desc)}</span>` +
-        (r.status && r.status !== 'Active' ? `<span class="tag">${esc(r.status)}</span>` : '') + '</li>').join('') +
-        (note ? `<li class="note">${esc(note)}</li>` : '');
-      $('res').onclick = e => { const li = e.target.closest('li[data-i]'); if (li) pick(list[+li.dataset.i]); };
-    }
-
-    let qTimer = 0;
-    function localSearch() {
-      const words = $('q').value.toLowerCase().split(/\s+/).filter(w => w);
-      $('more').hidden = !words.length || !API_URL;
-      if (!words.length) { $('res').innerHTML = ''; return; }
-      const out = [];
-      if (DB) for (const [item, desc] of DB.items) {
-        const t = (item + ' ' + desc).toLowerCase();
-        if (words.every(w => t.indexOf(w) !== -1)) { out.push({ item, desc }); if (out.length >= 40) break; }
       }
-      showResults(out, out.length ? '' : 'ไม่เจอในสินค้า Active — กด "ค้นรวมสินค้าเลิกขาย" ด้านล่าง');
-    }
-    async function serverSearch() {
-      $('res').innerHTML = '<li class="note">กำลังค้น…</li>';
-      try {
-        const r = await (await fetch(API_URL + '?action=search&q=' + encodeURIComponent($('q').value))).json();
-        showResults(r.results || [], (r.results || []).length ? '' : 'ไม่พบสินค้า');
-      } catch (e) { showResults([], 'เชื่อมต่อไม่ได้'); }
+      // สำรอง: เปิดแชทบอทพร้อมข้อความ ให้กดส่งเอง
+      location.href = 'https://line.me/R/oaMessage/' + encodeURIComponent(OA_ID) + '/?' + encodeURIComponent(text);
     }
 
-    function pick(r) {
-      if (!pending) { if (pushItem(r)) { closeFind(); $('code').value = ''; } return; }
-      picked = r;
-      $('cCode').textContent = pending;
-      $('cItem').textContent = r.item + ' ' + r.desc;
-      $('search').hidden = true; $('confirm').classList.add('on');
-    }
+    $('go').onclick = () => send($('code').value);
+    $('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') send($('code').value); });
 
-    async function learn(code, it) {
-      if (DB) DB.bc.set(code, it.item);
-      if (DB && !DB.items.has(it.item)) DB.items.set(it.item, it.desc);
-      if (!API_URL) return;
-      try {
-        const u = API_URL + '?action=learn&code=' + code + '&item=' + it.item +
-          '&by=' + encodeURIComponent(me) + '&uid=' + encodeURIComponent(uid);
-        const r = await (await fetch(u)).json();
-        if (r.error) say('จำบาร์โค้ดไม่สำเร็จ: ' + r.error, 'err');
-        try { localStorage.removeItem(CACHE_KEY); } catch (e) {}   // รอบหน้าโหลดข้อมูลใหม่ที่มีบาร์โค้ดนี้
-      } catch (e) { say('จำบาร์โค้ดไม่สำเร็จ (เน็ต)', 'err'); }
-    }
-
-    $('findBtn').onclick = () => openFind('', '');
-    $('findClose').onclick = closeFind;
-    $('q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(localSearch, 200); });
-    $('q').addEventListener('keydown', e => { if (e.key === 'Enter') localSearch(); });
-    $('more').onclick = serverSearch;
-    $('cBack').onclick = () => { $('confirm').classList.remove('on'); $('search').hidden = false; };
-    $('cOnly').onclick = () => { const r = picked; closeFind(); $('code').value = ''; pushItem(r); };
-    $('cYes').onclick = () => {
-      const r = picked, code = pending;
-      closeFind(); $('code').value = ''; pushItem(r); learn(code, r);
-      say('✓ จำแล้ว: ' + code + ' = ' + r.item + ' · เพิ่มลง Tag แล้ว', 'ok');
-    };
-
-    // ---------- กล้อง (สแกนต่อเนื่อง ไม่ต้องปิดเปิดใหม่) ----------
-    async function toggleCam() {
-      if (scanner) {
-        try { await scanner.stop(); } catch (e) {}
-        scanner = null; $('cam').classList.remove('on'); $('camBtn').textContent = '📷 เปิดกล้องสแกน';
-        return;
-      }
-      $('cam').classList.add('on'); $('camBtn').textContent = '⏹ ปิดกล้อง';
+    async function startCamera() {
       const F = Html5QrcodeSupportedFormats;
       scanner = new Html5Qrcode('reader', {
         formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF],
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true }, verbose: false,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        verbose: false,
       });
       try {
-        await scanner.start({ facingMode: 'environment' }, { fps: 12 }, (t) => {
-          const now = Date.now();
-          if (t === lastScan && now - lastAt < 2500) return;   // กันสแกนซ้ำตัวเดิมรัว ๆ
-          lastScan = t; lastAt = now; add(t);
-        }, () => {});
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 12 },  // อ่านทั้งภาพ กรอบสีเขียวเป็นแค่ตัวช่วยเล็ง
+          (text) => send(text),
+          () => {}
+        );
+        status('เล็งบาร์โค้ดให้อยู่ในกรอบ');
       } catch (e) {
-        say('เปิดกล้องไม่ได้ — พิมพ์รหัสแทนได้', 'err');
-        scanner = null; $('cam').classList.remove('on'); $('camBtn').textContent = '📷 เปิดกล้องสแกน';
+        status('เปิดกล้องไม่ได้ — กดอนุญาตใช้กล้อง หรือพิมพ์รหัสด้านล่างแทน');
+        $('hint').textContent = String(e && e.message || e).slice(0, 120);
       }
     }
 
-    // ---------- ปุ่มต่าง ๆ ----------
-    $('add').onclick = () => add($('code').value);
-    $('code').addEventListener('keydown', e => { if (e.key === 'Enter') add($('code').value); });
-    $('camBtn').onclick = toggleCam;
-    $('items').onclick = e => {
-      const b = e.target.closest('.x'); if (!b) return;
-      items.splice(+b.dataset.i, 1); render();
-    };
-    ['aisle', 'bay'].forEach(id => $(id).addEventListener('input', () => render()));
-    $('bay').addEventListener('blur', () => { const v = $('bay').value.trim(); if (/^\d{1,2}$/.test(v)) { $('bay').value = v.padStart(3, '0'); render(); } });
-    $('sigMode').onclick = e => {
-      const b = e.target.closest('button'); if (!b) return;
-      sigMode = b.dataset.v;
-      document.querySelectorAll('#sigMode button').forEach(x => x.classList.toggle('on', x === b));
-      render();
-    };
-    $('dest').onclick = e => {
-      const b = e.target.closest('button'); if (!b) return;
-      dest = b.dataset.v;
-      try { localStorage.setItem('tag137_dest', dest); } catch (e) {}
-      render();
-    };
-    $('chipBtn').onclick = () => { $('big').classList.add('on'); renderBig(); };
-    window.addEventListener('scroll', () => {
-      $('chip').classList.toggle('on', window.scrollY > $('mini').offsetTop + $('mini').offsetHeight - 10);
-    }, { passive: true });
-    $('mini').onclick = () => { $('big').classList.add('on'); renderBig(); };
-    $('close').onclick = () => $('big').classList.remove('on');
-    $('print').onclick = () => {
-      if (!$('aisle').value.trim() || !$('bay').value.trim()) { say('กรอก AISLE / BAY ก่อนนะครับ', 'err'); $('aisle').focus(); return; }
-      if (!dest) { say('เลือกที่ปริ้นด้านล่างก่อนนะครับ (ALC / GR / FRESH / RC)', 'err'); return; }
-      // ของจริง: ส่ง {aisle, bay, items, sigMode, me} ไปเข้าคิวที่ Apps Script → คอม GR สั่ง Excel ปริ้นออก Fuji
-      alert(`(ยังไม่ได้ต่อเครื่องปริ้น)\nส่งไป ${dest}: ${items.length} รายการ · ${pages().length} แผ่น A3\nAISLE ${$('aisle').value} BAY ${$('bay').value}`);
-    };
-
     (async () => {
-      if (LIFF_ID) {
-        try {
-          await liff.init({ liffId: LIFF_ID });
-          if (liff.isLoggedIn()) { const p = await liff.getProfile(); me = p.displayName; uid = p.userId; }
-        } catch (e) { say('LIFF: ' + (e.message || e), 'err'); }
+      if (LIFF_ID && LIFF_ID.indexOf('ใส่_') !== 0) {
+        try { await liff.init({ liffId: LIFF_ID }); liffReady = true; } catch (e) {
+          $('hint').textContent = 'LIFF: ' + (e && e.message || e);
+        }
       }
-      $('meName').textContent = me;
-      render();
-      loadDB();
+      startCamera();
     })();
   </script>
 </body>
