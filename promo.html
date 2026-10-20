@@ -60,6 +60,9 @@
   #pv .pg.stretch img, #pv .half.stretch img { width: 100%; height: 100%; object-fit: fill; max-width: none; max-height: none; }
   #pv .half.fill img { width: 100%; height: 100%; object-fit: cover; max-width: none; max-height: none; }
   #pv .cut { border-top: 1.5px dashed #bbb; width: 100%; }
+  #pv .pg.a6 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; padding: 0; }
+  #pv .pg.a6 .half:nth-child(odd) { border-right: 1.5px dashed #bbb; }
+  #pv .pg.a6 .half:nth-child(-n+2) { border-bottom: 1.5px dashed #bbb; }
   #pv .empty { color: var(--muted); font-size: 14px; padding: 30px 0; text-align: center; width: 100%; }
   .hint { font-size: 12px; color: var(--muted); }
 
@@ -105,6 +108,7 @@
     <section class="card">
       <h2>2. ขนาดกระดาษ</h2>
       <div class="seg" id="paper">
+        <button data-v="A6">A6<small>4 ป้าย / A4</small></button>
         <button data-v="A5">A5<small>2 ป้าย / A4</small></button>
         <button data-v="A4" class="on">A4<small>มาตรฐาน</small></button>
         <button data-v="A3">A3<small>ใหญ่</small></button>
@@ -143,7 +147,7 @@
     // ===================
     const $ = (id) => document.getElementById(id);
     let me = '', uid = '';
-    const PAPER = { A5: [148, 210], A4: [210, 297], A3: [297, 420] };   // มม. (แนวตั้ง)
+    const PAPER = { A6: [105, 148], A5: [148, 210], A4: [210, 297], A3: [297, 420] };   // มม. (แนวตั้ง)
     let files = [];        // { name, size, pages: [dataURL], w, h, copies }
     let paper = 'A4', fit = 'stretch';
 
@@ -204,7 +208,7 @@
           <div class="step"><button data-i="${i}" data-d="-1">−</button><b>${f.copies}</b><button data-i="${i}" data-d="1">+</button></div>
           <button class="x" data-del="${i}">✕</button></li>`).join('');
 
-      // ตัวอย่าง: แสดงทุกแผ่นที่จะออกจริง (A5 = A4 แผ่นละ 2 ป้าย บน/ล่าง)
+      // ตัวอย่าง: แสดงทุกแผ่นที่จะออกจริง (A5 = A4 แผ่นละ 2 ป้าย บน/ล่าง · A6 = A4 แผ่นละ 4 ป้าย 2×2)
       const slots = [];
       files.forEach(f => f.pages.forEach((src, k) => {
         for (let c = 0; c < f.copies; c++) slots.push({ f, k, src, land: f.w >= f.h });
@@ -212,7 +216,15 @@
       const H = 230, A4W = Math.round(H * 210 / 297);
       let html = '', sheets = 0;
       const pad = (h) => fit === 'fit' ? 'padding:' + Math.round(h * .03) + 'px;' : '';
-      if (paper === 'A5') {
+      if (paper === 'A6') {
+        sheets = Math.ceil(slots.length / 4);
+        // ช่อง A6 เป็นแนวตั้ง → รูปแนวนอนหมุนให้ (เหมือนตอนปริ้นจริง)
+        const cell = (sl) => sl ? `<div class="half ${fit}" style="${pad(H / 2)}"><img src="${sl.land ? rotated(sl) : sl.src}" alt=""></div>` : '<div class="half"></div>';
+        for (let i = 0; i < slots.length && i < 120; i += 4) {
+          html += `<div class="pg a6" style="width:${A4W}px;height:${H}px">${cell(slots[i])}${cell(slots[i + 1])}${cell(slots[i + 2])}${cell(slots[i + 3])}
+            <span class="tag">A4 แผ่นที่ ${i / 4 + 1} · 4 ป้าย A6</span></div>`;
+        }
+      } else if (paper === 'A5') {
         sheets = Math.ceil(slots.length / 2);
         for (let i = 0; i < slots.length && i < 60; i += 2) {
           const half = (sl) => sl ? `<div class="half ${fit}" style="${pad(H / 2)}"><img src="${sl.land ? sl.src : rotated(sl)}" alt=""></div>` : '<div class="half"></div>';
@@ -229,9 +241,10 @@
         });
       }
       $('pv').innerHTML = html || '<div class="empty">ยังไม่มีไฟล์ — แนบรูปป้ายด้านบนก่อน</div>';
-      $('pvCount').textContent = files.length ? `(${sheets} แผ่น${paper === 'A5' ? ' A4 · ' + slots.length + ' ป้าย' : ''})` : '';
-      $('sum').textContent = sheets + ' แผ่น' + (paper === 'A5' ? ' · ' + slots.length + ' ป้าย' : '');
-      $('sum2').textContent = (paper === 'A5' ? 'A5 (2 ป้าย/A4)' : paper) + ' · ' + ({ fit: 'พอดีแผ่น', fill: 'ตัดขอบ', stretch: 'ยืดเต็มแผ่น' }[fit]) + ' · เครื่อง ' + DEST;
+      const multi = paper === 'A5' || paper === 'A6';
+      $('pvCount').textContent = files.length ? `(${sheets} แผ่น${multi ? ' A4 · ' + slots.length + ' ป้าย' : ''})` : '';
+      $('sum').textContent = sheets + ' แผ่น' + (multi ? ' · ' + slots.length + ' ป้าย' : '');
+      $('sum2').textContent = ({ A5: 'A5 (2 ป้าย/A4)', A6: 'A6 (4 ป้าย/A4)' }[paper] || paper) + ' · ' + ({ fit: 'พอดีแผ่น', fill: 'ตัดขอบ', stretch: 'ยืดเต็มแผ่น' }[fit]) + ' · เครื่อง ' + DEST;
       $('print').disabled = !files.length;
     }
 
