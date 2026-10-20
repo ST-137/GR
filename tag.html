@@ -144,12 +144,12 @@
   .pg { width: 1123px; height: 1587px; padding: 70px 70px 0; font-family: "Sarabun", sans-serif; color: #000; background: #fff; }
   .pg .no { text-align: right; font-size: 30px; padding-right: 10px; height: 52px; }
   .pg table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .pg td { border-left: 2px solid #000; border-right: 2px solid #000; height: 94px; vertical-align: middle; }
+  .pg td { border-left: 2px solid #000; border-right: 2px solid #000; height: 152px; vertical-align: middle; }
   .pg tr.h td { border: 2px solid #000; height: 84px; }
   .pg tr.it td { border-bottom: 1.5px solid #000; }
   
-  .pg .c1 { text-align: center; font: 700 34px Arial, sans-serif; }
-  .pg .c2 { font-size: 44px; font-weight: 800; padding-left: 10px; white-space: nowrap; overflow: hidden; }
+  .pg .c1 { text-align: center; font: 700 44px Arial, sans-serif; }
+  .pg .c2 { font-size: 70px; font-weight: 800; padding-left: 10px; white-space: nowrap; overflow: hidden; }
   
   .pg .c3 { text-align: center; font-size: 40px; font-weight: 800; }
   .pg .hd { font-size: 26px; font-weight: 700; padding-left: 4px; white-space: nowrap; }
@@ -275,7 +275,7 @@
 
     const $ = (id) => document.getElementById(id);
     const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    let items = [], me = 'ทดลอง', uid = '', scanner = null, busy = false, lastScan = '', lastAt = 0;
+    let items = [], me = 'ทดลอง', uid = '', scanner = null, busy = false, lastScan = '', lastAt = 0, cand = '', candAt = 0;
     let DB = null;          // ข้อมูลสินค้าในมือถือ { items: Map(item→ชื่อ), bc: Map(บาร์โค้ด→item), w: Map(6หลัก→item) }
     let dest = '';          // ปริ้นไปที่แผนกไหน (จำไว้ในเครื่อง)
     const DESTS = ['GR', 'ALC', 'RC'];
@@ -303,7 +303,7 @@
       }
       return `<div class="pg">
         <div class="no">PAGE&nbsp; ${no} / ${total}</div>
-        <table><colgroup><col style="width:150px"><col></colgroup>
+        <table><colgroup><col style="width:200px"><col></colgroup>
           <tr class="h"><td colspan="2" class="hd">AISLE NO.<u>${esc(aisle)}</u> BAY NO.<u>${esc(bay)}</u></td></tr>
           ${body}
         </table>
@@ -360,9 +360,9 @@
     // ชื่อยาวเกินช่อง → ลดขนาดตัวอักษรลงจนพอดี (เหมือน Shrink to fit ใน Excel)
     function fit(root) {
       root.querySelectorAll('.c2').forEach(td => {
-        let fs = 44;
+        let fs = 70;
         td.style.fontSize = fs + 'px';
-        while (td.scrollWidth > td.clientWidth && fs > 26) td.style.fontSize = (fs -= 2) + 'px';
+        while (td.scrollWidth > td.clientWidth && fs > 36) td.style.fontSize = (fs -= 2) + 'px';
       });
     }
 
@@ -562,8 +562,10 @@
       try {
         await scanner.start({ facingMode: 'environment' }, { fps: 12 }, (t) => {
           const now = Date.now();
+          // ต้องอ่านได้เลขเดิม 2 ครั้งติดกันก่อน (กันกล้องอ่านเพี้ยน เช่น ภาพเบลอ/เอียง)
+          if (t !== cand || now - candAt > 1500) { cand = t; candAt = now; return; }
           if (t === lastScan && now - lastAt < 2500) return;   // กันสแกนซ้ำตัวเดิมรัว ๆ
-          lastScan = t; lastAt = now; add(t);
+          lastScan = t; lastAt = now; cand = ''; add(t);
         }, () => {});
       } catch (e) {
         say('เปิดกล้องไม่ได้ — พิมพ์รหัสแทนได้', 'err');
